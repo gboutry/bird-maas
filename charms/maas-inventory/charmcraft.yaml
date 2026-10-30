@@ -1,0 +1,49 @@
+type: charm
+base: ubuntu@24.04
+platforms:
+  amd64:
+    build-on:
+    - amd64
+    build-for:
+    - amd64
+  arm64:
+    build-on:
+    - arm64
+    build-for:
+    - arm64
+assumes:
+- juju >= 3.6
+parts:
+  charm:
+    plugin: uv
+    source: ../..
+    source-subdir: charms/maas-inventory
+    build-snaps:
+    - astral-uv
+name: maas-inventory
+title: Maas Inventory
+summary: Publish normalized MAAS machine inventory without distributing API keys.
+description: Principal GET-only MAAS inventory integrator. Exposes allocated routing
+  identities and rack peers through a shared typed interface.
+provides:
+  inventory:
+    interface: machine-inventory
+    optional: true
+config:
+  options:
+    maas-url:
+      type: string
+      description: Verified HTTPS MAAS base URL including /MAAS/.
+      default: ''
+    maas-credentials:
+      type: string
+      description: Juju secret ID containing api-key.
+      default: ''
+    rack-profiles:
+      type: string
+      description: JSON array of rack IDs and approved TOR peers; rack tags use rack-<id>.
+      default: '[]'
+    host-identities:
+      type: string
+      description: JSON array of machine_id, local_asn and router_id allocations.
+      default: '[]'

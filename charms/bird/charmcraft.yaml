@@ -1,0 +1,86 @@
+type: charm
+base: ubuntu@24.04
+platforms:
+  amd64:
+    build-on:
+    - amd64
+    build-for:
+    - amd64
+  arm64:
+    build-on:
+    - arm64
+    build-for:
+    - arm64
+assumes:
+- juju >= 3.6
+parts:
+  charm:
+    plugin: uv
+    source: ../..
+    source-subdir: charms/bird
+    build-snaps:
+    - astral-uv
+name: bird
+title: Bird
+summary: Manage unnumbered host BGP and BFD with validated attachment inventory.
+description: Principal machine charm for one host routing domain. Does not provision
+  interfaces, addresses or policy rules.
+requires:
+  inventory:
+    interface: machine-inventory
+    limit: 1
+    optional: false
+  attachments:
+    interface: host-attachments
+    optional: false
+  advertisements:
+    interface: route-advertisements
+    optional: false
+config:
+  options:
+    enabled:
+      type: boolean
+      description: Explicitly enable package installation and owned routing service.
+      default: false
+    routing-domain:
+      type: string
+      description: Attachment and advertisement domain to consume.
+      default: storage-public
+    kernel-table:
+      type: int
+      description: Exclusive IPv4 kernel table >=1000; policy rules are externally
+        managed.
+      default: 3100
+    import-prefixes:
+      type: string
+      description: Comma-separated exact IPv4 prefixes accepted from TORs.
+      default: ''
+    export-allowlist:
+      type: string
+      description: Comma-separated IPv4 networks within which local /32 exports are
+        authorized.
+      default: ''
+    bgp-credentials:
+      type: string
+      description: Juju secret ID containing session-id to BGP password entries.
+      default: ''
+    bfd-min-tx-ms:
+      type: int
+      description: Desired BFD transmit interval, 50..60000 milliseconds.
+      default: 300
+    bfd-min-rx-ms:
+      type: int
+      description: Minimum accepted BFD receive interval, 50..60000 milliseconds.
+      default: 300
+    bfd-multiplier:
+      type: int
+      description: BFD detection multiplier, 1..255.
+      default: 3
+    bgp-hold-time-seconds:
+      type: int
+      description: BGP hold time in seconds.
+      default: 9
+    bgp-keepalive-time-seconds:
+      type: int
+      description: BGP keepalive interval in seconds.
+      default: 3

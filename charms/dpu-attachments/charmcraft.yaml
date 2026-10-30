@@ -1,0 +1,38 @@
+type: charm
+base: ubuntu@24.04
+platforms:
+  amd64:
+    build-on:
+    - amd64
+    build-for:
+    - amd64
+  arm64:
+    build-on:
+    - arm64
+    build-for:
+    - arm64
+assumes:
+- juju >= 3.6
+parts:
+  charm:
+    plugin: uv
+    source: ../..
+    source-subdir: charms/dpu-attachments
+    build-snaps:
+    - astral-uv
+name: dpu-attachments
+title: Dpu Attachments
+summary: Publish read-only DPU card identity and verified host attachment observations.
+description: Principal observer for existing devlink, OVS VLAN membership and LLDP
+  state. Never configures forwarding or runs BIRD.
+provides:
+  attachments:
+    interface: host-attachments
+    optional: true
+config:
+  options:
+    attachments:
+      type: string
+      description: JSON array of explicitly approved card/function/VLAN/uplink/TOR
+        mappings.
+      default: '[]'

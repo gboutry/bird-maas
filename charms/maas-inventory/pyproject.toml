@@ -1,0 +1,8 @@
+[project]
+name = "maas-inventory-operator"
+version = "0.1.0"
+requires-python = ">=3.12"
+dependencies = ["ops~=3.7", "maas-bird-common"]
+
+[tool.uv.sources]
+maas-bird-common = { path = "../../shared" }
