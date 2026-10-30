@@ -139,3 +139,33 @@ def test_fresh_table_check_uses_all_tables(tmp_path, monkeypatch):
         service._prepare(3100)
     assert ["ip", "-j", "-N", "route", "show", "table", "all"] in calls
     assert not service.marker.exists()
+
+
+def test_pipe_up_does_not_hide_a_down_bgp_ipv4_channel():
+    bad = protocols().replace("State: UP", "State: DOWN")
+    bad += """\npath_0_context_0 Pipe --- up 12:00:00
+  Channel ipv4
+    State: UP
+"""
+    assert not runtime.accepted(bad, "fe80::1 fabric1 Up 12:00:00 0.300 0.900", 1)
+
+
+def test_initial_context_failure_stops_service_before_policy_rollback(
+    tmp_path, numa_inputs, monkeypatch
+):
+    from maas_bird.resolver import resolve
+
+    plan = resolve(**numa_inputs)
+    service = runtime.BirdService(tmp_path)
+    service.directory.mkdir(parents=True)
+    monkeypatch.setattr(service, "_prepare", lambda _: None)
+    events = []
+    policy = Mock()
+    policy.path.exists.return_value = False
+    policy.remove.side_effect = lambda: events.append("remove-policy")
+    monkeypatch.setattr(runtime, "PolicyRouting", lambda *args: policy)
+    monkeypatch.setattr(service, "stop", lambda: events.append("stop-service"))
+    monkeypatch.setattr(service, "apply", Mock(side_effect=runtime.RuntimeErrorBase("failure")))
+    with pytest.raises(runtime.RuntimeErrorBase, match="failure"):
+        service.apply_contexts("candidate", plan)
+    assert events == ["stop-service", "remove-policy"]

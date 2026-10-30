@@ -117,3 +117,45 @@ def charm_context():
         return testing.Context(getattr(module, cls), meta=metadata)
 
     return create
+
+
+@pytest.fixture
+def numa_inputs(inputs):
+    import dataclasses
+    import json
+
+    from maas_bird.models import Advertisements
+
+    inputs["local_links"] = [
+        dataclasses.replace(link, numa_node=n) for n, link in enumerate(inputs["local_links"])
+    ]
+    contexts = [
+        dict(
+            id=f"numa{n}",
+            machine_id="abc123",
+            numa_node=n,
+            table=3100 + n,
+            rule_priority=10000 + n * 100,
+            sources=[f"10.60.11.{11 + n}/32"],
+        )
+        for n in range(2)
+    ]
+    inputs["config"]["routing-contexts"] = json.dumps(contexts)
+    inputs["config"]["protected-prefixes"] = "172.20.0.0/24,172.21.0.0/24"
+    inputs["advertisements"] = [
+        Advertisements.model_validate(
+            {
+                "advertisements": [
+                    dict(
+                        machine_id="abc123",
+                        domain="storage-public",
+                        prefix=f"10.60.11.{11 + n}/32",
+                        context=f"numa{n}",
+                        ready=True,
+                    )
+                    for n in range(2)
+                ]
+            }
+        )
+    ]
+    return inputs

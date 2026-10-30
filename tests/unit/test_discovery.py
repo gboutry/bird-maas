@@ -101,3 +101,13 @@ def test_discovery_errors_do_not_emit_subprocess_output(monkeypatch):
     with pytest.raises(discovery.DiscoveryError) as exc:
         discovery.command(["devlink", "-j", "dev", "info"])
     assert str(exc.value) == "Read-only command failed: devlink"
+
+
+def test_unknown_numa_is_explicit_in_local_link():
+    from maas_bird.discovery import LocalLink
+    from maas_bird.models import Identity
+
+    link = LocalLink(
+        "eth0", Identity(scheme="permanent-mac", value="00:11:22:33:44:55"), 0, 0, None, None, None
+    )
+    assert link.numa_node is None

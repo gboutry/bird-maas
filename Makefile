@@ -1,4 +1,4 @@
-.PHONY: sync lint format test native pack schemas
+.PHONY: sync lint format test native namespaces pack schemas
 sync:
 	uv sync --locked --python 3.12
 lint:
@@ -11,6 +11,8 @@ test:
 	uv run --locked pytest --cov=maas_bird --cov-report=term-missing tests/unit
 native:
 	uv run --locked pytest tests/native
+namespaces:
+	uv run --locked python scripts/test_namespaces.py
 pack:
 	uv run --locked python scripts/pack.py
 schemas:

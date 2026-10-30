@@ -51,3 +51,13 @@ def test_asn_is_strict_and_bounded(value):
 def test_duplicate_collection_members_are_discarded():
     a = decode(Inventory, {"hosts": '[{"machine_id":"a"},{"machine_id":"a"}]'})
     assert len(a.hosts) == 1
+
+
+def test_context_field_is_additive_to_advertisement_contract():
+    old = decode(Advertisements, {"advertisements": '[{"machine_id":"a","prefix":"10.0.0.1/32"}]'})
+    assert old.advertisements[0].context is None
+    new = decode(
+        Advertisements,
+        {"advertisements": '[{"machine_id":"a","prefix":"10.0.0.1/32","context":"numa0"}]'},
+    )
+    assert new.advertisements[0].context == "numa0"

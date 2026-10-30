@@ -49,6 +49,7 @@ class LocalLink:
     vf: int | None
     vlan: int | None
     link_local: IPv6Address | None
+    numa_node: int | None = None
 
 
 def links(root: Path = Path("/sys")) -> list[LocalLink]:
@@ -110,6 +111,11 @@ def links(root: Path = Path("/sys")) -> list[LocalLink]:
             and not x.get("tentative", False)
             and not x.get("dadfailed", False)
         ]
+        try:
+            node = int((pf / "numa_node").read_text().strip())
+            node = node if node >= 0 else None
+        except (OSError, ValueError):
+            node = None
         result.append(
             LocalLink(
                 name,
@@ -119,6 +125,7 @@ def links(root: Path = Path("/sys")) -> list[LocalLink]:
                 vf,
                 vlan,
                 ll[0] if len(ll) == 1 else None,
+                node,
             )
         )
     return result

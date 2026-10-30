@@ -50,6 +50,18 @@
           ],
           "default": null,
           "title": "Ready"
+        },
+        "context": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Context"
         }
       },
       "title": "Advertisement",

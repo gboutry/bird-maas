@@ -171,3 +171,35 @@ def test_service_address_must_be_an_actual_loopback_host_route(inputs, charm_con
     )
     service.apply.assert_not_called()
     assert out.unit_status == testing.WaitingStatus("Advertised service /32 is not present on lo")
+
+
+def test_bird_numa_context_event_uses_policy_runtime(numa_inputs, charm_context, monkeypatch):
+    monkeypatch.setattr("maas_bird.discovery.host_uuid", lambda: "host-uuid")
+    monkeypatch.setattr("maas_bird.discovery.links", lambda: numa_inputs["local_links"])
+    monkeypatch.setattr(
+        "maas_bird.discovery.command",
+        lambda _: (
+            '[{"addr_info":[{"local":"10.60.11.11","prefixlen":32},'
+            '{"local":"10.60.11.12","prefixlen":32}]}]'
+        ),
+    )
+    service = Mock()
+    monkeypatch.setattr("maas_bird.runtime.BirdService", lambda **kwargs: service)
+    ctx = charm_context("bird")
+    inv = testing.Relation("inventory", remote_app_data=encode(numa_inputs["inventory"]))
+    attachments = testing.Relation(
+        "attachments",
+        remote_units_data={n: encode(doc) for n, doc in enumerate(numa_inputs["attachments"])},
+    )
+    ads = testing.Relation(
+        "advertisements", remote_units_data={0: encode(numa_inputs["advertisements"][0])}
+    )
+    secret = testing.Secret({"path1": "first-secret", "path2": "second-secret"})
+    config = numa_inputs["config"] | {"enabled": True, "bgp-credentials": secret.id}
+    out = ctx.run(
+        ctx.on.config_changed(),
+        testing.State(config=config, secrets={secret}, relations={inv, attachments, ads}),
+    )
+    assert out.unit_status == testing.ActiveStatus("2 BGP sessions established")
+    service.apply.assert_not_called()
+    assert [c.table for c in service.apply_contexts.call_args.args[1].contexts] == [3100, 3101]

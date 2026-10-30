@@ -85,6 +85,7 @@ class Advertisement(Record):
     domain: str | None = None
     prefix: IPv4Network | None = None
     ready: bool | None = Field(default=None, strict=True)
+    context: str | None = None
 
 
 class Advertisements(Record):
@@ -99,6 +100,19 @@ class Session(Record):
     peer: IPv6Address
     local: IPv6Address
     remote_asn: Asn
+    numa_node: int | None = None
+
+
+class RoutingContext(Record):
+    """Validated internal plan; not a relation payload."""
+
+    id: str
+    machine_id: str | None = None
+    numa_node: Annotated[int, Field(strict=True, ge=0)]
+    table: Annotated[int, Field(strict=True, ge=1000, le=4294967295)]
+    rule_priority: Annotated[int, Field(strict=True, ge=1000, le=32000)]
+    sources: tuple[IPv4Network, ...]
+    exports: tuple[IPv4Network, ...] = ()
 
 
 class Plan(Record):
@@ -112,3 +126,4 @@ class Plan(Record):
     bfd_multiplier: int
     hold_time: int
     keepalive_time: int
+    contexts: tuple[RoutingContext, ...] = ()

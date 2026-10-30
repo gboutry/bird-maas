@@ -1,10 +1,11 @@
 """Resolve generic inventory and attachments into a locally verified routing plan."""
 
+import json
 import re
 from ipaddress import IPv4Network
 
 from maas_bird.discovery import LocalLink
-from maas_bird.models import Advertisements, Attachments, Inventory, Plan, Session
+from maas_bird.models import Advertisements, Attachments, Inventory, Plan, RoutingContext, Session
 
 
 class NotReady(RuntimeError):
@@ -87,6 +88,7 @@ def resolve(
                         peer=attachment.peer_link_local,
                         local=link.link_local,
                         remote_asn=peer.asn,
+                        numa_node=link.numa_node,
                     )
                 )
     if len(sessions) != len(peers):
@@ -132,4 +134,87 @@ def resolve(
         bfd_multiplier=mult,
         hold_time=hold,
         keepalive_time=keepalive,
+        contexts=resolve_contexts(config, sessions, advertisements, host.machine_id, imports),
+    )
+
+
+def resolve_contexts(config, sessions, advertisements, machine_id, imports):
+    raw = json.loads(config.get("routing-contexts", "[]"))
+    if not isinstance(raw, list):
+        raise InvalidIntent("routing-contexts must be an array")
+    if not raw:
+        return ()
+    if any(not isinstance(item, dict) for item in raw):
+        raise InvalidIntent("routing-contexts must contain objects")
+    contexts = [
+        RoutingContext.model_validate(item)
+        for item in raw
+        if item.get("machine_id") in (None, machine_id)
+    ]
+    if not contexts:
+        raise NotReady("Waiting for this host's routing contexts")
+    protected = [
+        IPv4Network(value.strip())
+        for value in config.get("protected-prefixes", "").split(",")
+        if value.strip()
+    ]
+    if not protected or not imports or any(p.prefixlen == 0 for p in imports):
+        raise InvalidIntent("NUMA contexts require public imports and protected-prefixes")
+    if any(a.overlaps(b) for a in imports for b in protected):
+        raise InvalidIntent(
+            "Public destinations overlap protected management/replication prefixes"
+        )
+    if any(a.overlaps(b) for i, a in enumerate(imports) for b in imports[i + 1 :]):
+        raise InvalidIntent("Public destination prefixes must not overlap")
+    if any(s.numa_node is None for s in sessions):
+        raise NotReady("NUMA locality is unknown for a host attachment")
+    if any(not any(s.numa_node == c.numa_node for s in sessions) for c in contexts):
+        raise InvalidIntent("Each context needs a verified local attachment")
+    ids, tables, priorities, sources = set(), set(), set(), set()
+    allowed = [
+        IPv4Network(value.strip())
+        for value in config["export-allowlist"].split(",")
+        if value.strip()
+    ]
+    for context in contexts:
+        if (
+            not re.fullmatch(r"[a-zA-Z0-9_-]{1,48}", context.id)
+            or context.id in ids
+            or context.table in tables
+            or not context.sources
+        ):
+            raise InvalidIntent("Context IDs, tables and source bindings must be unique")
+        ids.add(context.id)
+        tables.add(context.table)
+        for source in context.sources:
+            if (
+                source.prefixlen != 32
+                or source in sources
+                or not any(source.subnet_of(prefix) for prefix in allowed)
+            ):
+                raise InvalidIntent("Context sources must be unique authorized /32 prefixes")
+            sources.add(source)
+        occupied = set(
+            range(
+                context.rule_priority, context.rule_priority + len(context.sources) * len(imports)
+            )
+        )
+        if priorities & occupied or max(occupied) > 32000:
+            raise InvalidIntent("Context rule priority ranges overlap or exceed 32000")
+        priorities |= occupied
+    grouped = {c.id: set() for c in contexts}
+    by_id = {c.id: c for c in contexts}
+    for doc in advertisements:
+        for ad in doc.advertisements or ():
+            if ad.machine_id != machine_id or ad.domain != config["routing-domain"]:
+                continue
+            if ad.context is None:
+                raise NotReady("Advertisement must identify its NUMA routing context")
+            if ad.context not in by_id or ad.prefix not in by_id[ad.context].sources:
+                raise InvalidIntent("Advertisement does not match its declared source context")
+            if ad.ready:
+                grouped[ad.context].add(ad.prefix)
+    return tuple(
+        c.model_copy(update={"exports": tuple(sorted(grouped[c.id]))})
+        for c in sorted(contexts, key=lambda c: c.id)
     )

@@ -13,7 +13,8 @@ production deployment or a 60-rack scale claim.
 - **bird** matches its hardware UUID to inventory and matches generic device identity
   records to locally discovered functions. It manages one BIRD routing domain on an
   existing host, with IPv6 link-local BGP transport, IPv4 extended next hops, and BFD.
-  It starts disabled. It does not create interfaces, VIP addresses or policy rules.
+  It starts disabled. It does not create interfaces or VIP addresses. Optional NUMA
+  contexts manage narrowly scoped source-policy rules and fail-closed guards.
 
 ## Repository
 
@@ -24,6 +25,7 @@ docs/schemas/                               # generated JSON schemas
 examples/                                   # illustrative two-rack policy and DPU intent
 tests/unit/                                 # Ops state transitions and shared logic
 tests/native/                               # actual BIRD CLI and localhost BGP tests
+tests/namespaces/                           # isolated unnumbered BFD and policy forwarding
 tests/integration/                          # isolated Juju deployment smoke test
 ```
 
@@ -90,8 +92,8 @@ uv run pytest tests/integration
 ```
 
 It uses pytest-jubilant's temporary model and leaves routing disabled. It must never
-be pointed at existing production hosts. Full two-TOR BFD/dataplane acceptance remains
-a separate lab test; no live infrastructure is changed by the unit or native tests.
+be pointed at existing production hosts. Real TOR/DPU acceptance remains a separate lab test. The local namespace suite below
+exercises synthetic TORs and actual kernel forwarding without accessing live infrastructure.
 
 ## Deployment outline
 
@@ -117,8 +119,8 @@ Set config from `examples/` after replacing illustrative identities. Our observe
 lab MAAS HTTP endpoint is intentionally rejected: configure verified HTTPS first.
 
 The host network owner must provision isolated point-to-point adjacencies, IPv6
-link-local addresses, MTU, local VIPs on `lo`, firewall policy, and policy rules using
-the chosen exclusive kernel table. TOR ASNs, peers, exact route filters, authentication
+link-local addresses, MTU, local VIPs on `lo`, and firewall policy. In legacy mode the
+network owner supplies policy rules; NUMA mode owns only its explicit public selectors. TOR ASNs, peers, exact route filters, authentication
 and BFD settings must be configured by their owner. This project does not configure
 TORs, change replication or management, or claim that routes are hardware offloaded.
 Only locally present, authorized IPv4 /32 service addresses are advertised.
@@ -127,8 +129,8 @@ After checking the input records and provisioning those prerequisites, explicitl
 set `enabled=true`. A fresh enabled unit may install Ubuntu's `bird2` package, stop
 its newly installed vendor service, and operate the dedicated `maas-bird.service`.
 An existing active vendor BIRD service or another unit's ownership marker blocks
-activation. There is one owner per host; multiple routing domains per host are not
-supported yet. Decommission before changing the kernel-table number.
+activation. There is one owner per host. NUMA mode uses multiple tables within that owner, with
+one BGP session per adjacency. Decommission before changing owned tables or selectors.
 
 ## Safety and acceptance
 
@@ -145,3 +147,35 @@ matching is not authentication: only integrate trusted producer applications. Sh
 relation bags expose their records to all related units. Secrets never belong in them.
 
 For contract fields, lifecycle, and scalability see [docs/design.md](docs/design.md).
+
+## NUMA-aware public routing
+
+Use [examples/numa-contexts.yaml](examples/numa-contexts.yaml) for two VIPs bound to
+host NUMA nodes 0 and 1. Workload advertisements add a `context` field matching the
+configured ID. Contexts can select `machine_id` so one application can contain host
+specific mappings. Missing host mappings or unknown host PF NUMA locality block activation.
+
+Each context uses its local adjacency first and the remote adjacency after BFD failure.
+Only the specified VIP source **and** public destination prefixes select its table.
+Management and replication prefixes must be declared in `protected-prefixes` and may
+not overlap public imports. Traffic without an explicit VIP source is outside this policy;
+the charm does not infer the NUMA node of a process or choose its source address.
+
+Permanent unreachable defaults prevent fallback into the host main table when both
+paths disappear. Disabling BIRD retains these guards and source rules; decommissioning
+removes only acknowledged, journaled objects. Table/selector changes require decommissioning.
+See [docs/design.md](docs/design.md) for rollback and ownership boundaries. This controls
+host egress, not TOR ingress policy or hardware offload.
+
+Run the real namespace tests using an installed or privately extracted BIRD 2 binary:
+
+```bash
+BIRD_BINARY=/absolute/path/to/usr/sbin/bird make namespaces
+```
+
+The runner requires `ip`, `nft`, `unshare`, and enabled unprivileged user namespaces.
+It checks that user, mount and network namespaces are new **before** any mutation,
+mounts a private `/run`, and creates synthetic hosts/TORs there. Tests cover 50/300 ms
+BFD profiles, actual UDP egress, silent failures with carrier up, failback, both-path
+failure, protected traffic, policy collisions, interrupted operations and rollback.
+These are correctness tests, not CPU overhead or convergence benchmarks.

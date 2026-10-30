@@ -1,9 +1,10 @@
 """Owned BIRD service with native parse checks and confirmed reconfiguration.
 
-The host network owner supplies addresses, interfaces, and policy rules. This module
-never changes them. Kernel table exclusivity is checked before first activation.
+The host network owner supplies addresses and interfaces. Opt-in NUMA contexts own
+only journaled public policy rules and guards. Dedicated tables must be unused.
 """
 
+import fcntl
 import grp
 import json
 import os
@@ -13,6 +14,8 @@ import subprocess
 import time
 from pathlib import Path
 
+from maas_bird.models import Plan
+from maas_bird.policy import PolicyRouting
 from maas_bird.render import quoted
 
 
@@ -47,12 +50,14 @@ class BirdService:
     def _control(self, *args, check=True):
         return run(["birdc", "-s", self.socket, *args], check=check)
 
-    def _prepare(self, table: int):
+    def _prepare(self, table: int | tuple[int, ...]):
+        tables = (table,) if isinstance(table, int) else table
+        table_record = ",".join(str(value) for value in sorted(tables))
         if self.marker.exists():
             if self.marker.read_text() != self.owner + "\n":
                 raise RuntimeErrorBase("Unknown service ownership marker")
             recorded = self.directory / "kernel-table"
-            if recorded.exists() and recorded.read_text().strip() != str(table):
+            if recorded.exists() and recorded.read_text().strip() != table_record:
                 raise RuntimeErrorBase("Changing the owned kernel table requires decommissioning")
             return
         if self.directory.exists() or self.unit.exists():
@@ -60,7 +65,7 @@ class BirdService:
         if run(["systemctl", "is-active", "bird.service"], check=False).returncode == 0:
             raise RuntimeErrorBase("Another BIRD service is active")
         routes = json.loads(run(["ip", "-j", "-N", "route", "show", "table", "all"]).stdout)
-        if any(str(route.get("table")) == str(table) for route in routes):
+        if any(str(route.get("table")) in {str(t) for t in tables} for route in routes):
             raise RuntimeErrorBase("Dedicated kernel table is already populated")
         if not shutil.which("bird"):
             from charmlibs import apt
@@ -71,7 +76,7 @@ class BirdService:
         self.directory.mkdir(mode=0o750, parents=True)
         self.marker.write_text(self.owner + "\n")
         self.marker.chmod(0o600)
-        (self.directory / "kernel-table").write_text(str(table) + "\n")
+        (self.directory / "kernel-table").write_text(table_record + "\n")
         self.unit.write_text("""[Unit]
 Description=MAAS BIRD routing
 After=network-online.target
@@ -97,12 +102,14 @@ WantedBy=multi-user.target
         self.unit.chmod(0o644)
         run(["systemctl", "daemon-reload"])
 
-    def apply(self, contents: str, table: int, session_count: int):
+    def apply(
+        self, contents: str, table: int | tuple[int, ...], session_count: int, route_check=None
+    ):
         self._prepare(table)
         if self.config.exists() and self.config.read_text() == contents:
             if run(["systemctl", "is-active", "maas-bird.service"], check=False).returncode:
                 run(["systemctl", "enable", "--now", "maas-bird.service"])
-            if self.established(session_count):
+            if self.established(session_count) and (route_check is None or route_check()):
                 return
             raise SessionsPending("Waiting for BGP sessions to establish")
         candidate = self.directory / "candidate.conf"
@@ -120,7 +127,7 @@ WantedBy=multi-user.target
             else:
                 self._control("configure", quoted(str(candidate)), "timeout", "60")
             for _ in range(20):
-                if self.established(session_count):
+                if self.established(session_count) and (route_check is None or route_check()):
                     if not initial:
                         self._control("configure", "confirm")
                         candidate.replace(self.config)
@@ -134,6 +141,29 @@ WantedBy=multi-user.target
             raise SessionsPending("BGP acceptance failed; previous configuration retained")
         finally:
             candidate.unlink(missing_ok=True)
+
+    def apply_contexts(self, contents: str, plan: Plan):
+        tables = tuple(sorted(c.table for c in plan.contexts))
+        self._prepare(tables)
+        lock = self.directory / "context.lock"
+        fd = os.open(lock, os.O_RDWR | os.O_CREAT, 0o600)
+        with os.fdopen(fd, "w") as stream:
+            fcntl.flock(stream, fcntl.LOCK_EX)
+            policy = PolicyRouting(self.directory, self.owner, run)
+            new = not policy.path.exists()
+            policy.ensure(plan)
+            try:
+                self.apply(
+                    contents,
+                    tables,
+                    len(plan.sessions),
+                    route_check=lambda: policy.verify_routes(plan),
+                )
+            except Exception:
+                if new:
+                    self.stop()
+                    policy.remove()
+                raise
 
     def established(self, count: int) -> bool:
         protocols = self._control("show", "protocols", "all", check=False)
@@ -150,7 +180,8 @@ WantedBy=multi-user.target
         if not self.marker.exists() or self.marker.read_text() != self.owner + "\n":
             return
         self.stop()
-        for name in ["bird.conf", "candidate.conf", "kernel-table", "owner"]:
+        PolicyRouting(self.directory, self.owner, run).remove()
+        for name in ["bird.conf", "candidate.conf", "kernel-table", "owner", "context.lock"]:
             (self.directory / name).unlink(missing_ok=True)
         self.unit.unlink(missing_ok=True)
         self.directory.rmdir()
@@ -159,7 +190,11 @@ WantedBy=multi-user.target
 
 def accepted(protocols: str, bfd: str, count: int) -> bool:
     """Verify actual BGP, IPv4 extended-next-hop capability and BFD, including on BIRD 2.14."""
-    blocks = re.split(r"(?m)^(?=uplink_[0-9]+\s+BGP\s)", protocols)[1:]
+    sections = re.split(
+        r"(?m)^(?=[A-Za-z_][A-Za-z0-9_]*\s+(?:BGP|Pipe|Kernel|Direct|Device|Static)\s)",
+        protocols,
+    )
+    blocks = [section for section in sections if re.match(r"uplink_[0-9]+\s+BGP\s", section)]
     if len(blocks) != count:
         return False
     for block in blocks:

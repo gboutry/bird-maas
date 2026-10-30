@@ -84,3 +84,13 @@ config:
       type: int
       description: BGP keepalive interval in seconds.
       default: 3
+    routing-contexts:
+      type: string
+      default: '[]'
+      description: JSON array of id, numa_node, table, rule_priority and source /32
+        prefixes. Empty preserves legacy externally managed policy.
+    protected-prefixes:
+      type: string
+      default: ''
+      description: Comma-separated management/replication IPv4 networks. Required
+        with NUMA contexts; public destinations must not overlap these.
