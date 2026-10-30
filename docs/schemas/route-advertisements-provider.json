@@ -1,0 +1,79 @@
+{
+  "$defs": {
+    "Advertisement": {
+      "properties": {
+        "machine_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Machine Id"
+        },
+        "domain": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Domain"
+        },
+        "prefix": {
+          "anyOf": [
+            {
+              "format": "ipv4network",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Prefix"
+        },
+        "ready": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Ready"
+        }
+      },
+      "title": "Advertisement",
+      "type": "object"
+    }
+  },
+  "description": "None means unknown; an explicit empty tuple is an authoritative withdrawal.",
+  "properties": {
+    "advertisements": {
+      "anyOf": [
+        {
+          "items": {
+            "$ref": "#/$defs/Advertisement"
+          },
+          "type": "array"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Advertisements"
+    }
+  },
+  "title": "Advertisements",
+  "type": "object"
+}

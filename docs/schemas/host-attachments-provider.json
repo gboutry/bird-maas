@@ -1,0 +1,223 @@
+{
+  "$defs": {
+    "Attachment": {
+      "properties": {
+        "id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Id"
+        },
+        "function": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Function"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "domain": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Domain"
+        },
+        "vlan": {
+          "anyOf": [
+            {
+              "maximum": 4094,
+              "minimum": 1,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Vlan"
+        },
+        "chassis_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Chassis Id"
+        },
+        "peer_link_local": {
+          "anyOf": [
+            {
+              "format": "ipv6",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Peer Link Local"
+        },
+        "ready": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Ready"
+        }
+      },
+      "title": "Attachment",
+      "type": "object"
+    },
+    "Card": {
+      "properties": {
+        "identity": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Identity"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "attachments": {
+          "anyOf": [
+            {
+              "items": {
+                "$ref": "#/$defs/Attachment"
+              },
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Attachments"
+        }
+      },
+      "title": "Card",
+      "type": "object"
+    },
+    "Function": {
+      "properties": {
+        "controller": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Controller"
+        },
+        "pf": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Pf"
+        },
+        "vf": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Vf"
+        }
+      },
+      "title": "Function",
+      "type": "object"
+    },
+    "Identity": {
+      "properties": {
+        "scheme": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Scheme"
+        },
+        "value": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Value"
+        }
+      },
+      "title": "Identity",
+      "type": "object"
+    }
+  },
+  "description": "Provider unit data, one document per DPU unit.",
+  "properties": {
+    "cards": {
+      "anyOf": [
+        {
+          "items": {
+            "$ref": "#/$defs/Card"
+          },
+          "type": "array"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Cards"
+    }
+  },
+  "title": "Attachments",
+  "type": "object"
+}

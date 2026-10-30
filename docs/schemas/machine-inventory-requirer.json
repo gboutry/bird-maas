@@ -1,0 +1,19 @@
+{
+  "description": "Consumer unit data; the provider verifies against actual MAAS inventory.",
+  "properties": {
+    "system_uuid": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "System Uuid"
+    }
+  },
+  "title": "InventoryRequest",
+  "type": "object"
+}
