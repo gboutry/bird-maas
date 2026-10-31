@@ -4,6 +4,7 @@ import json
 from unittest.mock import Mock
 
 import pytest
+import scenario as testing
 from hypothesis import given, settings
 from hypothesis import strategies as st
 from maas_bird import authority, discovery
@@ -11,7 +12,6 @@ from maas_bird.interfaces import encode
 from maas_bird.policy_objects import PolicyError
 from maas_bird.rack_runtime import MigrationRequired
 from maas_bird.resolver import resolve_rack
-from ops import testing
 
 from tests.factories import consumer_config, inventory_response, rack_inputs, ten_vf_inputs
 

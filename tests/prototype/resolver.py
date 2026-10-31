@@ -2,7 +2,9 @@
 
 import json
 import re
+from collections.abc import Mapping
 from ipaddress import IPv4Network
+from typing import Any
 
 from maas_bird.discovery import LocalLink
 from maas_bird.models import (
@@ -38,7 +40,7 @@ def resolve(
     attachments: list[Attachments],
     advertisements: list[Advertisements],
     local_links: list[LocalLink],
-    config: dict,
+    config: dict[str, Any],
 ) -> Plan | MultiDomainPlan:
     raw = json.loads(config.get("routing-domains", "[]"))
     if not isinstance(raw, list) or any(not isinstance(item, dict) for item in raw):
@@ -56,7 +58,7 @@ def resolve_single(
     attachments: list[Attachments],
     advertisements: list[Advertisements],
     local_links: list[LocalLink],
-    config: dict,
+    config: dict[str, Any],
 ) -> Plan:
     """Resolve one domain without recursively widening the result to a host plan."""
     host, peers = _resolve_host(uid, inventory)
@@ -103,12 +105,17 @@ def _resolve_host(uid: str, inventory: Inventory) -> tuple[Host, dict[str, Peer]
         )
     host = hosts[0]
     host_peers = host.peers
-    if not host.machine_id or not host.local_asn or not host.router_id or not host_peers:
+    if (
+        not bool(host.machine_id)
+        or not bool(host.local_asn)
+        or not bool(host.router_id)
+        or not bool(host_peers)
+    ):
         raise NotReady("Host routing identity is incomplete")
-    peers = {p.chassis_id.lower(): p for p in host_peers if p.chassis_id}
+    peers = {p.chassis_id.lower(): p for p in host_peers if bool(p.chassis_id)}
     if len(peers) != len(host_peers):
         raise InvalidIntent("Rack peer identities are missing or duplicated")
-    if any(not p.asn or not p.id for p in peers.values()):
+    if any(not bool(p.asn) or not bool(p.id) for p in peers.values()):
         raise NotReady("Rack peer configuration is incomplete")
     return host, peers
 
@@ -131,7 +138,7 @@ def _resolve_sessions(
         # One card can expose multiple PFs. The provider deduplicates those as one card record.
         for card in document.cards or ():
             identity = card.identity
-            if not identity or not identity.scheme or not identity.value:
+            if not identity or not bool(identity.scheme) or not bool(identity.value):
                 continue
             candidates = [link for link in local_links if link.identity == identity]
             if not candidates:
@@ -162,7 +169,7 @@ def _resolve_attachment(
     f = attachment.function
     if not f or f.controller is None or f.pf is None:
         raise NotReady("Attachment function coordinates are incomplete")
-    if not attachment.chassis_id or attachment.chassis_id.lower() not in peers:
+    if not bool(attachment.chassis_id) or attachment.chassis_id.lower() not in peers:
         raise InvalidIntent("Local attachment reaches an unapproved TOR")
     matches = [
         link
@@ -177,7 +184,11 @@ def _resolve_attachment(
             else (InvalidIntent("Attachment matches multiple local interfaces"))
         )
     link = matches[0]
-    if not link.link_local or not attachment.peer_link_local or not attachment.id:
+    if (
+        not bool(link.link_local)
+        or not bool(attachment.peer_link_local)
+        or not bool(attachment.id)
+    ):
         raise NotReady("Attachment has no usable IPv6 link-local adjacency")
     if not re.fullmatch(r"[a-zA-Z0-9_.:-]{1,15}", link.interface):
         raise InvalidIntent("Unsafe interface name")
@@ -219,7 +230,7 @@ def _ready_prefixes(
     return prefixes
 
 
-def _routing_parameters(config) -> tuple[int, int, int, int, int, int]:
+def _routing_parameters(config: Mapping[str, int]) -> tuple[int, int, int, int, int, int]:
     """Validate kernel-table ownership range and BGP/BFD timer bounds."""
     table = config["kernel-table"]
     if not 1000 <= table <= 4294967295:
@@ -320,7 +331,9 @@ def resolve_contexts(config, sessions, advertisements, machine_id, imports):
     )
 
 
-def resolve_domains(uid, inventory, attachments, advertisements, local_links, config, raw):
+def resolve_domains(
+    uid, inventory, attachments, advertisements, local_links, config, raw
+) -> MultiDomainPlan:
     """Resolve domains independently, then enforce host-wide resource separation."""
     if json.loads(config.get("routing-contexts", "[]")):
         raise InvalidIntent("Do not combine routing-domains with legacy routing-contexts")

@@ -10,6 +10,7 @@ import json
 from ipaddress import IPv4Network
 from pathlib import Path
 from tempfile import TemporaryDirectory
+from typing import override
 
 import pytest
 from hypothesis import given, settings
@@ -238,6 +239,7 @@ class PolicyLifecycle(RuleBasedStateMachine):
         ]
         assert json.loads(self.policy.path.read_text())["phase"] == "active"
 
+    @override
     def teardown(self):
         self.directory.cleanup()
 

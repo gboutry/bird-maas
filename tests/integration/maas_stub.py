@@ -4,6 +4,7 @@ import http.server
 import json
 import ssl
 from pathlib import Path
+from typing import override
 
 DIRECTORY = Path("/tmp/maas-bird-test")
 
@@ -23,6 +24,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
         previous = json.loads(counts.read_text()) if counts.exists() else 0
         counts.write_text(json.dumps(previous + 1))
 
+    @override
     def log_message(self, format, *args):
         pass  # Never record OAuth headers, even with this test-only key.
 

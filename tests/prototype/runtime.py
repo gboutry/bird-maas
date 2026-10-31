@@ -26,7 +26,7 @@ from tests.prototype.policy import PolicyRouting
 from tests.prototype.service_units import bird_unit, policy_unit
 
 
-def run(args: list[str], check: bool = True) -> subprocess.CompletedProcess:
+def run(args: list[str], check: bool = True) -> subprocess.CompletedProcess[str]:
     try:
         result = subprocess.run(args, capture_output=True, text=True, timeout=30, check=False)
     except (OSError, subprocess.SubprocessError) as exc:
@@ -86,7 +86,7 @@ class BirdService:
                     "Missing configured kernel-table ownership; inspect before recovery"
                 )
             write_atomic(registry, record, 0o600)
-        if not shutil.which("bird"):
+        if shutil.which("bird") is None:
             apt.add_package("bird2", update_cache=True)
             run(["systemctl", "disable", "--now", "bird.service"])
         self._prepare_files()

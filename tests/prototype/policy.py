@@ -1,6 +1,7 @@
 """Plan adapter for the standalone, boot-safe policy journal."""
 
 import json
+from typing import Any
 
 from maas_bird.models import MultiDomainPlan, Plan, routing_plans
 
@@ -27,7 +28,7 @@ from tests.prototype.policy_journal import (
 )
 
 
-def layout(plan: Plan | MultiDomainPlan) -> dict:
+def layout(plan: Plan | MultiDomainPlan) -> dict[str, Any]:
     rules = []
     destinations = sorted({p for domain in routing_plans(plan) for p in domain.imports})
     for context in plan.contexts:

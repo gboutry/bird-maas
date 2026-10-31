@@ -7,6 +7,7 @@ from unittest.mock import Mock
 
 import jsonschema
 import pytest
+import scenario as testing
 from hypothesis import given
 from hypothesis import strategies as st
 from maas_bird import discovery
@@ -22,7 +23,6 @@ from maas_bird.models import (
 )
 from maas_bird.rack import ScopeError, attachments_for_host
 from maas_bird.resolver import resolve_rack
-from ops import testing
 
 from tests.factories import inventory_response, rack_inputs
 

@@ -12,13 +12,13 @@ from tempfile import TemporaryDirectory
 from unittest.mock import Mock, patch
 
 import pytest
+import scenario as testing
 from hypothesis import given, settings
 from hypothesis import strategies as st
 from maas_bird import rack_runtime
 from maas_bird.interfaces import encode
 from maas_bird.inventory import response_data
 from maas_bird.models import Inventory, UnitInventory
-from ops import testing
 
 from tests.factories import consumer_config, inventory_response, make_inputs
 from tests.policy_model import InjectedFailure, KernelModel

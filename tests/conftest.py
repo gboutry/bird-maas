@@ -4,11 +4,11 @@ from pathlib import Path
 from unittest.mock import Mock
 
 import pytest
+import scenario as testing
 import yaml
 from maas_bird import external_policy, rack_runtime, runtime
 from maas_bird.rack_runtime import RackService
 from maas_bird.resolver import resolve_rack
-from ops import testing
 
 from tests.factories import make_inputs, rack_inputs, with_numa_contexts, with_routing_domains
 from tests.rack_host_model import ProvisionedHost

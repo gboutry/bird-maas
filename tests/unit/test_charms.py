@@ -1,12 +1,12 @@
 import json
 from unittest.mock import Mock
 
+import scenario as testing
 from maas_bird import discovery
 from maas_bird.interfaces import decode, encode
 from maas_bird.inventory import read_response
 from maas_bird.models import Attachments, Card, Identity, InventoryRequest
 from maas_bird.resolver import resolve_rack
-from ops import testing
 
 from tests.factories import consumer_config, inventory_response, rack_inputs
 
