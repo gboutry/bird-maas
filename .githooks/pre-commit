@@ -4,7 +4,39 @@ set -eu
 
 # Cover Git prechecks as well as lint/types/tests with one total budget. Expiry
 # rejects the commit; unfinished checks never count as passing.
-exec timeout --signal=KILL 5s sh -eu -c '
+# Own the process group explicitly. Some timeout implementations kill their
+# direct child while leaving grandchildren alive with Git's output pipes open.
+exec python3 -c '
+import os
+import signal
+import subprocess
+import sys
+
+process = subprocess.Popen(["sh", "-eu", "-c", sys.argv[1]], start_new_session=True)
+
+def stop_group():
+    try:
+        os.killpg(process.pid, signal.SIGKILL)
+    except ProcessLookupError:
+        pass
+
+def interrupted(signum, frame):
+    stop_group()
+    raise SystemExit(128 + signum)
+
+for signum in (signal.SIGINT, signal.SIGTERM, signal.SIGHUP):
+    signal.signal(signum, interrupted)
+try:
+    try:
+        status = process.wait(timeout=5)
+    except subprocess.TimeoutExpired:
+        print("Commit checks exceeded the five-second budget.", file=sys.stderr)
+        status = 124
+finally:
+    stop_group()
+    process.wait()
+sys.exit(status)
+' '
 root=$(git rev-parse --show-toplevel)
 cd "$root"
 

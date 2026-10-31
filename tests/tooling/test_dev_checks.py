@@ -165,7 +165,8 @@ def test_install_fails_closed_when_hook_configuration_cannot_be_read(repository,
 
 
 @pytest.mark.slow
-def test_actual_hook_budget_includes_git_prechecks(repository, tmp_path):
+@pytest.mark.parametrize("ignore_term", [False, True])
+def test_actual_hook_budget_includes_git_prechecks(repository, tmp_path, ignore_term):
     assert install(repository).returncode == 0
     real_git = shutil.which("git")
     assert real_git is not None
@@ -174,10 +175,28 @@ def test_actual_hook_budget_includes_git_prechecks(repository, tmp_path):
     stub.write_text(
         '#!/bin/sh\nif test "$1" = diff; then\n'
         '  printf "%s\\n" "precheck reached" > "$HOOK_PRECHECK"\n'
-        "  exec sleep 20\nfi\n" + "exec " + shlex.quote(real_git) + ' "$@"\n'
+        + ("  trap '' TERM\n" if ignore_term else "")
+        + "  exec sleep 20\nfi\n"
+        + "exec "
+        + shlex.quote(real_git)
+        + ' "$@"\n'
     )
     stub.chmod(0o700)
     env["HOOK_PRECHECK"] = str(repository / ".git/precheck-command")
+    # Native Git prepends its own exec directory before invoking hooks. Restore
+    # this test's command doubles inside the launcher so the delayed precheck
+    # is exercised by the real commit, rather than bypassed by Git's own PATH.
+    owned_hook = repository / ".git/hooks/pre-commit"
+    checked_hook = repository / ".git/hooks/checked-pre-commit"
+    owned_hook.rename(checked_hook)
+    owned_hook.write_text(
+        "#!/bin/sh\nexport PATH="
+        + shlex.quote(env["PATH"])
+        + "\nexec "
+        + shlex.quote(str(checked_hook))
+        + "\n"
+    )
+    owned_hook.chmod(0o700)
     started = time.monotonic()
     result = execute(
         [
