@@ -64,7 +64,13 @@ def test_reconfigure_is_native_confirmed_and_atomic(tmp_path, monkeypatch):
     monkeypatch.setattr(service, "_prepare", lambda _: None)
     monkeypatch.setattr(runtime.os, "chown", lambda *args: None)
     monkeypatch.setattr(runtime.grp, "getgrnam", lambda _: Mock(gr_gid=100))
-    control = Mock(return_value=Mock(returncode=0))
+    control = Mock(
+        return_value=Mock(
+            returncode=0, stdout="mb_candidate_test constant\nReconfiguration confirmed\n"
+        )
+    )
+    monkeypatch.setattr(runtime.uuid, "uuid4", lambda: Mock(hex="test"))
+    monkeypatch.setattr(service, "_active", lambda: True)
     monkeypatch.setattr(service, "_control", control)
     monkeypatch.setattr(service, "established", lambda _: True)
     run = Mock()
@@ -77,7 +83,8 @@ def test_reconfigure_is_native_confirmed_and_atomic(tmp_path, monkeypatch):
         "timeout",
         "60",
     )
-    assert control.call_args_list[1].args == ("configure", "confirm")
+    assert control.call_args_list[1].args == ("show", "symbols", "mb_candidate_test")
+    assert control.call_args_list[2].args == ("configure", "confirm")
     assert service.config.read_text() == "candidate"
 
 
@@ -88,7 +95,8 @@ def test_failed_acceptance_undoes_without_replacing_config(tmp_path, monkeypatch
     monkeypatch.setattr(service, "_prepare", lambda _: None)
     monkeypatch.setattr(runtime.os, "chown", lambda *args: None)
     monkeypatch.setattr(runtime.grp, "getgrnam", lambda _: Mock(gr_gid=100))
-    control = Mock()
+    control = Mock(return_value=Mock(returncode=0, stdout=""))
+    monkeypatch.setattr(service, "_active", lambda: True)
     monkeypatch.setattr(service, "_control", control)
     monkeypatch.setattr(service, "established", lambda _: False)
     monkeypatch.setattr(runtime, "run", Mock())

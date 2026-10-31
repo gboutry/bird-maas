@@ -77,7 +77,7 @@ class KernelModel:
         # Reads never consume a failure position: fail_at counts mutations only.
         if args == ["ip", "-j", "-N", "rule", "show"]:
             return subprocess.CompletedProcess(args, 0, self._wire(self.rules, rules=True), "")
-        if args == ["ip", "-j", "-N", "route", "show", "table", "all"]:
+        if args == ["ip", "-4", "-j", "-N", "route", "show", "table", "all"]:
             return subprocess.CompletedProcess(args, 0, self._wire(self.routes), "")
         # New production commands must extend the model explicitly; a fake success
         # for an unsupported command would conceal a verification gap.

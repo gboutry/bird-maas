@@ -153,3 +153,143 @@ def test_multiple_domain_parser(domain_inputs, tmp_path):
     config = tmp_path / "domains.conf"
     config.write_text(render(plan, {s.id: "example" for s in plan.sessions}))
     subprocess.run([str(BIRD), "-p", "-c", str(config)], check=True, capture_output=True)
+
+
+def test_runtime_rejects_native_expired_confirmation_and_tracks_generation(tmp_path, monkeypatch):
+    """Real parser/control path; delay acceptance past a shortened native timeout.
+
+    Production remains 60s. Only the command argument is shortened here to obtain
+    the same actual automatic rollback and zero-exit 'Nothing to do' response.
+    """
+    first = tmp_path / "first.conf"
+    first.write_text("router id 10.0.0.1; protocol device {} protocol bfd {}\n")
+    control = tmp_path / "bird.ctl"
+    process = subprocess.Popen(
+        [str(BIRD), "-f", "-c", str(first), "-s", str(control), "-P", str(tmp_path / "bird.pid")],
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.PIPE,
+    )
+    native_run = runtime.run
+    service = runtime.BirdService(tmp_path)
+    service.directory.mkdir(parents=True)
+    service.config.write_text(first.read_text())
+    service.socket = str(control)
+    monkeypatch.setattr(service, "_prepare", lambda _: None)
+    monkeypatch.setattr(service, "_active", lambda: True)
+    monkeypatch.setattr(service, "_write_config", lambda path, text: path.write_text(text))
+
+    def run(args, check=True):
+        if args[0] == "bird":
+            args = [str(BIRD), *args[1:]]
+        if args[0] == "birdc":
+            args = [str(BIRDC), *args[1:]]
+            if "timeout" in args:
+                args[-1] = "1"
+        return native_run(args, check=check)
+
+    monkeypatch.setattr(runtime, "run", run)
+    try:
+        deadline = time.monotonic() + 5
+        while not control.exists() and time.monotonic() < deadline:
+            time.sleep(0.05)
+        # Verify actual BIRD's symbol format and positive confirmation path first.
+        candidate = "router id 10.0.0.2; protocol device {} protocol bfd {}\n"
+        service.apply(candidate, 3100, 0)
+        assert "10.0.0.2" in service._control("show", "status").stdout
+        assert service.config.read_text() == candidate
+        healthy = service.established
+
+        def delayed(count):
+            time.sleep(2)
+            return healthy(count)
+
+        monkeypatch.setattr(service, "established", delayed)
+        with pytest.raises(runtime.SessionsPending, match="retained"):
+            service.apply("router id 10.0.0.3; protocol device {} protocol bfd {}", 3100, 0)
+        assert "10.0.0.2" in service._control("show", "status").stdout
+        assert service.config.read_text() == candidate
+        reply = service._control("configure", "confirm")
+        assert reply.returncode == 0
+        assert "Nothing to do" in reply.stdout
+    finally:
+        process.terminate()
+        process.communicate(timeout=5)
+
+
+def test_withdrawal_acceptance_failure_cannot_restore_native_route(tmp_path, monkeypatch):
+    """Exercise actual BIRD plus durable revocation; systemd is a private process double.
+
+    The original internal route remains locally possible, matching the withdrawn
+    VIP trigger. No production addresses, peers, units or interfaces are changed.
+    """
+    service = runtime.BirdService(tmp_path)
+    service.directory.mkdir(parents=True)
+    previous = (
+        "router id 10.0.0.1; protocol device {} protocol bfd {} "
+        "protocol static owned { ipv4; route 192.0.2.1/32 blackhole; }"
+    )
+    service.config.write_text(previous)
+    service._record_exports(["192.0.2.1/32"])
+    control = tmp_path / "bird.ctl"
+    service.socket = str(control)
+    processes = []
+
+    def start():
+        process = subprocess.Popen(
+            [
+                str(BIRD),
+                "-f",
+                "-c",
+                str(service.config),
+                "-s",
+                str(control),
+                "-P",
+                str(tmp_path / "bird.pid"),
+            ],
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.PIPE,
+        )
+        processes.append(process)
+        deadline = time.monotonic() + 5
+        while not control.exists() and time.monotonic() < deadline:
+            time.sleep(0.05)
+        assert process.poll() is None
+
+    def stop():
+        for process in processes:
+            if process.poll() is None:
+                process.terminate()
+                process.communicate(timeout=5)
+        control.unlink(missing_ok=True)
+
+    native_run = runtime.run
+
+    def run(args, check=True):
+        if args[0] == "bird":
+            args = [str(BIRD), *args[1:]]
+        if args[0] == "birdc":
+            args = [str(BIRDC), *args[1:]]
+        return native_run(args, check=check)
+
+    monkeypatch.setattr(runtime, "run", run)
+    monkeypatch.setattr(service, "_prepare", lambda _: None)
+    monkeypatch.setattr(service, "_write_config", lambda path, text: path.write_text(text))
+    monkeypatch.setattr(
+        service, "_active", lambda: bool(processes) and processes[-1].poll() is None
+    )
+    monkeypatch.setattr(service, "_start", start)
+    monkeypatch.setattr(service, "stop", stop)
+    monkeypatch.setattr(service, "established", lambda _: False)
+    monkeypatch.setattr(runtime.time, "sleep", lambda _: None)
+    try:
+        start()
+        assert "192.0.2.1/32" in service._control("show", "route", "all").stdout
+        with pytest.raises(runtime.SessionsPending, match="no previous configuration retained"):
+            service.apply(
+                "router id 10.0.0.1; protocol device {} protocol bfd {}", 3100, 2, exports=()
+            )
+        assert all(process.poll() is not None for process in processes)
+        assert not service.config.exists()
+        assert not (service.directory / "candidate.conf").exists()
+    finally:
+        stop()

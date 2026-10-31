@@ -131,3 +131,15 @@ A one-time differential check against `e46e03d` compared 150 generated valid cas
 plans, exception classes and messages matched for those cases. This is bounded
 regression evidence, not exhaustive equivalence or a correction of the review findings.
 The existing property assertions and Hypothesis example/step limits are retained.
+
+## Nine-finding lifecycle fixes
+
+See [review-fixes.md](review-fixes.md) for the finding-to-regression mapping and
+[design.md](design.md#fail-closed-lifecycle-corrections) for behavior and trade-offs.
+The local checks cover 152 unit/state/property cases, 7 native BIRD cases and 16
+namespace cases. `uv check` and `make lint` pass. Three amd64 charms are repacked
+and checked for matching shared/charm sources and absence of runtime Hypothesis.
+The native tests include actual timed rollback, candidate identity/confirmation,
+and withdrawal followed by failed acceptance. The namespace suite executes the
+standalone boot helper and checks real managed traffic cannot use the management
+leak trap after restoration. No physical boot or live fabric claim follows.

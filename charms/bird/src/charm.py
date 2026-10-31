@@ -17,7 +17,7 @@ from maas_bird.models import (
 )
 from maas_bird.policy import PolicyError
 from maas_bird.render import render
-from maas_bird.resolver import NotReady, resolve
+from maas_bird.resolver import AuthorizationWithdrawn, NotReady, resolve
 
 
 class BirdCharm(ops.CharmBase):
@@ -42,8 +42,14 @@ class BirdCharm(ops.CharmBase):
             dependency = f"relation:{event.relation.id}"
         elif isinstance(event, ops.RelationDepartedEvent):
             dependency = f"unit:{event.relation.id}:{event.departing_unit.name}"
-        if dependency and dependency in self._state.dependencies:
-            service.stop()
+        inventory_removed = (
+            isinstance(event, ops.RelationBrokenEvent) and event.relation.name == "inventory"
+        )
+        if inventory_removed or (dependency and dependency in self._state.dependencies):
+            try:
+                service.invalidate()
+            finally:
+                service.stop()
             self.unit.status = ops.BlockedStatus("A trusted routing producer was removed")
             return
         try:
@@ -82,10 +88,6 @@ class BirdCharm(ops.CharmBase):
                 raise NotReady("Advertised service /32 is not present on lo")
             secrets = secret_content(self, "bgp-credentials")
             contents = render(plan, secrets)
-            if isinstance(plan, MultiDomainPlan) or plan.contexts:
-                service.apply_contexts(contents, plan)
-            else:
-                service.apply(contents, plan.kernel_table, len(plan.sessions))
             dependencies = [f"relation:{inv_relation.id}"]
             identities = {link.identity for link in local_links}
             for endpoint in ["attachments", "advertisements"]:
@@ -107,7 +109,19 @@ class BirdCharm(ops.CharmBase):
                                 [f"relation:{relation.id}", f"unit:{relation.id}:{unit.name}"]
                             )
             self._state.dependencies = sorted(set(dependencies))
+            if isinstance(plan, MultiDomainPlan) or plan.contexts:
+                service.apply_contexts(contents, plan)
+            else:
+                service.apply(
+                    contents, plan.kernel_table, len(plan.sessions), exports=plan.prefixes
+                )
             self.unit.status = ops.ActiveStatus(f"{len(plan.sessions)} BGP sessions established")
+        except AuthorizationWithdrawn as exc:
+            try:
+                service.invalidate()
+            finally:
+                service.stop()
+            self.unit.status = ops.BlockedStatus(str(exc))
         except (NotReady, runtime.SessionsPending) as exc:
             self.unit.status = ops.WaitingStatus(str(exc))
         except (ValueError, KeyError, ops.ModelError):

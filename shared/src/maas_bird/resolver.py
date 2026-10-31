@@ -28,6 +28,10 @@ class InvalidIntent(ValueError):
     """Inputs conflict or violate the supported routing policy."""
 
 
+class AuthorizationWithdrawn(InvalidIntent):
+    """A complete authoritative snapshot no longer authorizes this host."""
+
+
 def resolve(
     uid: str,
     inventory: Inventory,
@@ -84,6 +88,10 @@ def resolve_single(
 
 def _resolve_host(uid: str, inventory: Inventory) -> tuple[Host, dict[str, Peer]]:
     """Select one host and validate its allocated routing identity and rack peers."""
+    if inventory.hosts is not None and not any(
+        h.system_uuid == uid.lower() for h in inventory.hosts
+    ):
+        raise AuthorizationWithdrawn("Host routing identity withdrawn from inventory")
     hosts = [h for h in inventory.hosts or () if h.system_uuid == uid.lower()]
     if len(hosts) != 1:
         raise (

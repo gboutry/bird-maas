@@ -241,3 +241,43 @@ control-plane scale limit.
 7. Still required: physical TOR/DPU faults, supported DPU topologies, CPU load and
    hardware offload. No production readiness claim follows
    from the previous levels alone.
+
+## Fail-closed lifecycle corrections
+
+The standalone standard-library policy journal records the kernel boot ID. A new
+boot can restore a complete committed ledger only when its tables and priorities
+are unoccupied. It installs all unreachable guards before source rules. A partial
+restore retains acknowledged guards; a present unacknowledged operation requires
+inspection. Same-boot missing objects remain drift, not permission to adopt them.
+Guard identity includes TOS and other selectors; restricted foreign guards cannot
+be adopted or removed as catch-all guards.
+
+An enabled early oneshot restores policy before `network-pre.target`. The BIRD
+unit requires it and repeats the locked check in `ExecStartPre`, including ordinary
+restarts. The helper is installed independently of the Juju agent virtualenv.
+This ordering is not a firewall or proof that every unrelated service is prevented
+from sending before policy restoration; physical boot acceptance remains required.
+
+Candidate acceptance requires the intended unique BIRD symbol and a monotonic
+40-second deadline inside the native 60-second rollback window. Positive native
+confirmation is mandatory; exit zero with `Nothing to do` is not confirmation.
+Changed configurations start a stopped owned daemon before querying it. Initial
+failures remove the candidate and stop routing; status distinguishes this from
+retaining an earlier accepted configuration.
+
+The runtime persists export authorization before loading candidates. A withdrawal
+invalidates the previous saved generation and stops BIRD before trying the new
+one. If acceptance fails, the withdrawn generation cannot be its rollback target;
+this deliberately trades routing availability for authorization correctness and
+may interrupt other domains sharing that BIRD process. Policy guards remain.
+A complete inventory snapshot excluding this host is also an explicit revocation;
+a missing snapshot is still an availability failure. Producer provenance is saved
+before activation, so unsuccessful activation cannot hide subsequent removal.
+Disk invalidation failure still attempts process stop; storage or stop failure is
+an operational error, not evidence that revocation completed successfully.
+
+Ownership claiming is separate from idempotent preparation. Retrying the same
+owner completes missing files and reloads systemd even when files already match.
+Configured kernel-table ownership remains immutable. These corrections do not
+provide distributed transactions with TORs or crash-atomic changes across kernel,
+filesystem, BIRD and Juju state.

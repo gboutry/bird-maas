@@ -863,3 +863,43 @@ def test_unconfirmed_replica_candidate_rolls_back_all_domains(lab, domain_inputs
     assert snapshot(lab)[0] == rules
     assert policy.path.read_bytes() == journal
     lab.send("172.22.0.11", "198.51.100.9", "mb-rdst", "recv0")
+
+
+def test_reboot_restorer_cli_reinstalls_guards_before_traffic(lab, numa_inputs):
+    """Simulate volatile loss; execute the exact installed stdlib-only helper.
+
+    This is a kernel/CLI check in a disposable namespace, not a host boot test.
+    The management default is deliberately usable when policy is absent.
+    """
+    plan = prepare_plan(numa_inputs, 50)
+    directory = lab.directory / "reboot"
+    policy = PolicyRouting(directory, "test-owner", lab.run)
+    policy.ensure(plan)
+    state = json.loads(policy.path.read_text())
+    for operation in reversed(state["done"]):
+        lab.run(policy._command(operation, "del"))
+    # Do not pretend same-boot drift proves reboot. Alter only the saved previous
+    # boot ID; the CLI reads the current real boot ID itself.
+    state["boot_id"] = "previous-kernel-boot"
+    policy.path.write_text(json.dumps(state))
+    (directory / "owner").write_text("test-owner\n")
+    helper = Path(runtime.policy_journal.__file__).resolve()
+    lab.run([sys.executable, "-I", str(helper), str(directory), "test-owner"])
+    policy.ensure(plan)
+    blocked_datagram(lab, "10.60.11.11", "203.0.113.9")
+    policy.remove()
+
+
+def test_tos_foreign_guard_is_rejected_without_partial_cleanup(lab, numa_inputs):
+    plan = prepare_plan(numa_inputs, 50)
+    policy = PolicyRouting(lab.directory / "tos", "test-owner", lab.run)
+    policy.ensure(plan)
+    guard = ["guard", plan.contexts[0].table]
+    lab.run(policy._command(guard, "del"))
+    lab.run(policy._command(guard, "add") + ["tos", "0x10"])
+    before = snapshot(lab)
+    with pytest.raises(PolicyError):
+        policy.ensure(plan)
+    with pytest.raises(PolicyError, match="Foreign route"):
+        policy.remove()
+    assert snapshot(lab) == before
