@@ -1,0 +1,191 @@
+{
+  "$defs": {
+    "Host": {
+      "properties": {
+        "machine_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Machine Id"
+        },
+        "system_uuid": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "System Uuid"
+        },
+        "rack": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Rack"
+        },
+        "local_asn": {
+          "anyOf": [
+            {
+              "maximum": 4294967294,
+              "minimum": 1,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Local Asn"
+        },
+        "router_id": {
+          "anyOf": [
+            {
+              "format": "ipv4",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Router Id"
+        },
+        "peers": {
+          "anyOf": [
+            {
+              "items": {
+                "$ref": "#/$defs/Peer"
+              },
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Peers"
+        }
+      },
+      "title": "Host",
+      "type": "object"
+    },
+    "Peer": {
+      "properties": {
+        "id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Id"
+        },
+        "chassis_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Chassis Id"
+        },
+        "asn": {
+          "anyOf": [
+            {
+              "maximum": 4294967294,
+              "minimum": 1,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Asn"
+        }
+      },
+      "title": "Peer",
+      "type": "object"
+    }
+  },
+  "description": "Provider response bound to one actual Juju unit and native hardware UUID.",
+  "properties": {
+    "unit_name": {
+      "pattern": "^[a-zA-Z0-9][a-zA-Z0-9-]*/[0-9]+$",
+      "title": "Unit Name",
+      "type": "string"
+    },
+    "system_uuid": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "System Uuid"
+    },
+    "rack": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Rack"
+    },
+    "scope_state": {
+      "default": "pending",
+      "enum": [
+        "ready",
+        "pending",
+        "conflict",
+        "revoked"
+      ],
+      "title": "Scope State",
+      "type": "string"
+    },
+    "host": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/Host"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    }
+  },
+  "required": [
+    "unit_name"
+  ],
+  "title": "UnitInventory",
+  "type": "object"
+}

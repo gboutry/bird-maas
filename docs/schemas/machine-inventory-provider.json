@@ -1,4 +1,6 @@
 {
+  "title": "Unit-addressed inventory provider application data",
+  "type": "object",
   "$defs": {
     "Host": {
       "properties": {
@@ -129,69 +131,73 @@
       "type": "object"
     }
   },
-  "description": "Provider application data. Only the provider leader writes this.",
-  "properties": {
-    "rack": {
-      "anyOf": [
-        {
-          "type": "string"
-        },
-        {
-          "type": "null"
-        }
-      ],
-      "default": null,
-      "title": "Rack"
-    },
-    "member_uuids": {
-      "anyOf": [
-        {
-          "items": {
+  "patternProperties": {
+    "^unit-[0-9]+$": {
+      "type": "string",
+      "maxLength": 49152,
+      "contentMediaType": "application/json",
+      "contentSchema": {
+        "description": "Provider response bound to one actual Juju unit and native hardware UUID.",
+        "properties": {
+          "unit_name": {
+            "pattern": "^[a-zA-Z0-9][a-zA-Z0-9-]*/[0-9]+$",
+            "title": "Unit Name",
             "type": "string"
           },
-          "type": "array"
-        },
-        {
-          "type": "null"
-        }
-      ],
-      "default": null,
-      "title": "Member Uuids"
-    },
-    "scope_state": {
-      "anyOf": [
-        {
-          "enum": [
-            "ready",
-            "pending",
-            "conflict",
-            "revoked"
-          ],
-          "type": "string"
-        },
-        {
-          "type": "null"
-        }
-      ],
-      "default": null,
-      "title": "Scope State"
-    },
-    "hosts": {
-      "anyOf": [
-        {
-          "items": {
-            "$ref": "#/$defs/Host"
+          "system_uuid": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "System Uuid"
           },
-          "type": "array"
+          "rack": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Rack"
+          },
+          "scope_state": {
+            "default": "pending",
+            "enum": [
+              "ready",
+              "pending",
+              "conflict",
+              "revoked"
+            ],
+            "title": "Scope State",
+            "type": "string"
+          },
+          "host": {
+            "anyOf": [
+              {
+                "$ref": "#/$defs/Host"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null
+          }
         },
-        {
-          "type": "null"
-        }
-      ],
-      "default": null,
-      "title": "Hosts"
+        "required": [
+          "unit_name"
+        ],
+        "title": "UnitInventory",
+        "type": "object"
+      }
     }
   },
-  "title": "Inventory",
-  "type": "object"
+  "additionalProperties": false
 }

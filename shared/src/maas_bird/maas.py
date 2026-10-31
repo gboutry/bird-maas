@@ -1,65 +1,100 @@
 """GET-only MAAS client with OAuth1 authentication and verified HTTPS."""
 
 from collections import Counter
-from dataclasses import dataclass
 from urllib.parse import urljoin, urlsplit
 
 import requests
 from requests_oauthlib import OAuth1
 
-from maas_bird.models import Host, Inventory, Peer
+from maas_bird.models import Host, Inventory, InventoryRequest, Peer, UnitInventory
 
 
 class InventoryError(RuntimeError):
     pass
 
 
-@dataclass(frozen=True)
-class ApplicationScope:
-    """MAAS-derived application membership, never a consumer-selected rack."""
+def unit_inventory(
+    machines, racks, identities, request, previous, unit_name, *, available, fresh, duplicate=False
+):
+    """Resolve one unit independently; another rack cannot grant or revoke it.
 
-    rack: str | None
-    members: tuple[str, ...]
-    state: str
-
-
-def application_scope(machines, racks, identities, requests, previous=None):
-    """Resolve every active unit before establishing an immutable rack scope.
-
-    An absent request is pending, not evidence of membership. A complete fresh
-    MAAS response proving invalid or mixed membership revokes the application.
-    Callers must not use this function to grant a scope from an API outage cache.
+    Bound UUID/rack changes leave a durable tombstone. API failure and incomplete
+    requests may shrink known policy, but never introduce a host or new peers.
     """
-    if not requests or any(not isinstance(uid, str) or not uid for uid in requests):
-        return ApplicationScope(previous, (), "pending")
-    members = tuple(sorted(uid.lower() for uid in requests))
-    if len(set(members)) != len(members):
-        return ApplicationScope(previous, members, "rejected")
-    approved_racks = {row["id"] for row in racks}
-    allocated = {row["machine_id"] for row in identities}
-    resolved = set()
-    for uid in members:
-        matches = [
-            row
-            for row in machines
-            if isinstance(row.get("hardware_uuid"), str) and row["hardware_uuid"].lower() == uid
-        ]
-        if len(matches) != 1 or matches[0].get("system_id") not in allocated:
-            return ApplicationScope(previous, members, "rejected")
-        tags = [
-            value.removeprefix("rack-")
-            for value in matches[0].get("tag_names", [])
-            if isinstance(value, str) and value.startswith("rack-")
-        ]
-        if len(tags) != 1 or tags[0] not in approved_racks:
-            return ApplicationScope(previous, members, "rejected")
-        resolved.add(tags[0])
-    if len(resolved) != 1:
-        return ApplicationScope(previous, members, "rejected")
-    rack = resolved.pop()
-    if previous is not None and previous != rack:
-        return ApplicationScope(previous, members, "changed")
-    return ApplicationScope(rack, members, "ready")
+    if previous.scope_state == "revoked":
+        return previous.model_copy(update={"host": None})
+    uid = request.system_uuid.lower() if request and request.system_uuid else None
+    bound = previous.system_uuid is not None and previous.rack is not None
+    base = UnitInventory(
+        unit_name=unit_name,
+        system_uuid=previous.system_uuid if bound else uid,
+        rack=previous.rack,
+        scope_state="pending",
+    )
+    if request is None or duplicate:
+        return base.model_copy(update={"scope_state": "conflict"})
+    if bound and uid is not None and previous.system_uuid != uid:
+        return base.model_copy(update={"scope_state": "revoked"})
+    if uid is None and available and fresh and bound:
+        observed = unit_inventory(
+            machines,
+            racks,
+            identities,
+            InventoryRequest(system_uuid=previous.system_uuid),
+            previous,
+            unit_name,
+            available=True,
+            fresh=True,
+        )
+        return (
+            observed.model_copy(update={"scope_state": "pending"})
+            if observed.scope_state == "ready"
+            else observed
+        )
+    if not available or uid is None:
+        retained = restrict_cached_inventory(
+            Inventory(rack=previous.rack, hosts=(previous.host,) if previous.host else ()),
+            racks,
+            identities,
+        )
+        return base.model_copy(update={"host": next(iter(retained.hosts or ()), None)})
+    matches = [
+        m
+        for m in machines
+        if isinstance(m.get("hardware_uuid"), str) and m["hardware_uuid"].lower() == uid
+    ]
+    if len(matches) != 1:
+        return base.model_copy(update={"scope_state": "conflict"})
+    machine = matches[0]
+    allocations = [i for i in identities if i.get("machine_id") == machine.get("system_id")]
+    tags = [
+        t.removeprefix("rack-")
+        for t in machine.get("tag_names", [])
+        if isinstance(t, str) and t.startswith("rack-")
+    ]
+    profiles = [r for r in racks if len(tags) == 1 and r.get("id") == tags[0]]
+    if len(allocations) != 1 or len(profiles) != 1:
+        return base.model_copy(update={"scope_state": "conflict"})
+    allocation = allocations[0]
+    if any(
+        sum(i.get(field) == allocation.get(field) for i in identities) != 1
+        for field in ("machine_id", "local_asn", "router_id")
+    ):
+        return base.model_copy(update={"scope_state": "conflict"})
+    rack = tags[0]
+    if bound and previous.rack != rack:
+        return base.model_copy(update={"scope_state": "revoked"})
+    if not bound and not fresh:
+        return base
+    try:
+        hosts = normalize([machine], profiles, allocations).hosts
+        assert hosts is not None
+        host = hosts[0]
+    except (ValueError, KeyError, TypeError):
+        return base.model_copy(update={"scope_state": "conflict"})
+    return UnitInventory(
+        unit_name=unit_name, system_uuid=uid, rack=rack, scope_state="ready", host=host
+    )
 
 
 class MaasClient:

@@ -38,28 +38,27 @@ class Host(Record):
 
 
 class Inventory(Record):
-    """Provider application data. Only the provider leader writes this."""
+    """Internal compiler snapshot for a selected native host."""
 
     rack: str | None = None
-    member_uuids: tuple[str, ...] | None = None
     scope_state: Literal["ready", "pending", "conflict", "revoked"] | None = None
     hosts: tuple[Host, ...] | None = None
 
 
-class RackHeader(Record):
+class UnitInventory(Record):
+    """Provider response bound to one actual Juju unit and native hardware UUID."""
+
+    unit_name: str = Field(pattern=r"^[a-zA-Z0-9][a-zA-Z0-9-]*/[0-9]+$")
+    system_uuid: str | None = None
     rack: str | None = None
+    scope_state: Literal["ready", "pending", "conflict", "revoked"] = "pending"
+    host: Host | None = None
 
 
 class InventoryRequest(Record):
     """Consumer unit data; the provider verifies against actual MAAS inventory."""
 
     system_uuid: str | None = None
-
-
-class RackRequest(Record):
-    """Consumer forwards its MAAS-derived attachment delivery scope."""
-
-    rack: str | None = None
 
 
 class Function(Record):
@@ -152,7 +151,6 @@ class Card(Record):
 class Attachments(Record):
     """Provider unit data, one document per DPU unit."""
 
-    rack: str | None = None
     cards: tuple[Card, ...] | None = None
 
 

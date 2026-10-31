@@ -132,7 +132,7 @@ def test_concrete_relation_and_config_examples_match_exported_schemas():
     root = Path(__file__).resolve().parents[2]
     examples = root / "tests/prototype/examples/multiple-domains"
     for name, model, schema in [
-        ("inventory", Inventory, "machine-inventory-provider"),
+        ("inventory", Inventory, "inventory-snapshot"),
         ("attachments-card1", Attachments, "host-attachments-provider"),
         ("attachments-card2", Attachments, "host-attachments-provider"),
         ("advertisements", Advertisements, "route-advertisements-provider"),

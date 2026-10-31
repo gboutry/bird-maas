@@ -11,9 +11,9 @@ runbook covers operation of the resulting host policy and routing service.
    Optional `maas-ca-certificate` references a secret with a `ca-cert` PEM field;
    TLS verification cannot be disabled.
 2. Deploy BIRD on each existing host and DPU observers on each existing card,
-   using rack-specific applications and explicit Juju placements. Integrate
-   only matching rack applications. A rack relation scope is immutable; remove
-   and reintegrate it for an intentional rack move.
+   using explicit Juju placements. Applications may span racks: MAAS determines
+   rack authority independently for each native unit UUID. A bound UUID/rack
+   move revokes only that unit; review placement before reintegrating it.
 3. Provision interfaces, IPv6 link-local addresses, loopback /32 VIPs, source-wide
    policy rules and exact unreachable guards persistently. Gate workload startup
    on those objects. Confirm source selection and NUMA attachment identities.
@@ -24,7 +24,7 @@ runbook covers operation of the resulting host policy and routing service.
 4. Configure both TORs for unnumbered IPv4 extended-next-hop BGP, matching BFD,
    filters, limits and ingress preference policy. Independently verify DPU/TOR
    offload. Neither observer nor BIRD makes these physical changes.
-5. Grant per-rack BGP secrets containing session-ID to password entries. Integrate
+5. Grant application-scoped BGP secrets containing session-ID to password entries. Integrate
    workload readiness publishers. Review `plan`, then explicitly enable routing.
    Absence of the external workload/provisioning integrations is a release gate,
    not a reason to fabricate ready advertisements.
@@ -57,7 +57,7 @@ it may reauthorize revoked exports or credentials.
 
 For an upgrade from the prototype, disable and explicitly decommission its owned
 service/policy first using that version's ownership checks. Independently install
-and verify the persistent host policy, then deploy the rack-scoped model disabled.
+and verify the persistent host policy, then deploy the unit-scoped model disabled.
 Old options (`routing-domain`, `kernel-table`, `import-prefixes`,
 `export-allowlist`, `routing-contexts`) are no longer supported. Preserve secrets
 and allowlisted evidence through an operator-reviewed migration; do not auto-adopt
@@ -89,14 +89,15 @@ not mean the unit is Active or that routing is enabled.
 
 ## Planning multiple racks
 
-For 60 racks of 40 hosts, the intended topology is one inventory application,
-60 BIRD applications and up to 60 DPU-observer applications. Each BIRD application
-has 40 units. DPU unit counts depend on cards per host; workloads have their own
-publisher units. Relation fan-out stays within a rack, but all units and events
-still consume controller capacity. JSON relation fields have a 48 KiB limit;
-measure actual rack inventory/attachment payload sizes before rollout.
+For 60 racks of 40 hosts, one inventory app can address every BIRD unit
+independently. One BIRD application and one DPU-observer application may span
+those racks; separate apps remain an option for policy, upgrade or secret
+isolation. Unit counts depend on hosts and cards. Each inventory response holds
+one host and its approved peers, with a 48 KiB field bound. Application-databag
+updates can still fan out to all consumer units; controller capacity is not
+established by content tests.
 
 Use the host/network source of truth to generate and review allocations. Start
-with one host, then expand by rack with measured hook latency, controller load
-and recovery behavior. Existing 60-by-40 content/property checks do not establish
-controller capacity, event latency or convergence at that deployment scale.
+with one host, then expand with measured hook latency, controller load and
+recovery behavior. The 60-rack wire test demonstrates bounded fields, not Juju
+capacity, event latency or convergence at that scale.

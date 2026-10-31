@@ -9,7 +9,7 @@ import ops
 
 from maas_bird.charm_support import relations
 from maas_bird.interfaces import decode
-from maas_bird.models import Advertisements, Attachments, Card, RackHeader
+from maas_bird.models import Advertisements, Attachments, Card
 from maas_bird.rack import advertisements_for_host, attachments_for_host
 
 
@@ -34,13 +34,9 @@ def collect(charm, event, rack, machine_id, identities, previous, *, workload_mo
                     document = (
                         advertisements_for_host(bag, rack, machine_id)
                         if endpoint == "advertisements"
-                        else attachments_for_host(bag, rack, identities)
+                        else attachments_for_host(bag, identities)
                     )
-                    if (
-                        endpoint == "attachments"
-                        and key in cache
-                        and decode(RackHeader, bag).rack == rack
-                    ):
+                    if endpoint == "attachments" and key in cache:
                         observed = decode(Attachments, bag)
                         old = Attachments.model_validate(cache[key])
                         if observed.cards is not None:

@@ -21,21 +21,30 @@ claiming service health. Start with [deployment prerequisites](docs/getting-star
 
 | Charm | Placement | Responsibility |
 |---|---|---|
-| `maas-inventory` | One application for the deployment | Read MAAS over HTTPS and publish each rack's machine identities and approved switches. Keep the MAAS credential in this application. |
-| `bird` | One application per rack, one unit on each participating host | Validate the host's inputs, manage its BIRD daemon, and advertise approved addresses using workload readiness or explicit node-address authority. |
-| `dpu-attachments` | Where DPUs are used: one application per rack, one unit per card | Observe card identity, host-function mapping, VLAN membership and LLDP neighbors. Publish attachment observations to BIRD. |
+| `maas-inventory` | One application for the deployment | Read MAAS over HTTPS and publish each unit's MAAS identity and approved switches. Keep the MAAS credential in this application. |
+| `bird` | One application can span racks; one unit on each participating host | Validate the host's inputs, manage its BIRD daemon, and advertise approved addresses using workload readiness or explicit node-address authority. |
+| `dpu-attachments` | Where DPUs are used: one application can span racks, one unit per card | Observe card identity, host-function mapping, VLAN membership and LLDP neighbors. Publish attachment observations to BIRD. |
 
 All three are **principal machine charms**: place them explicitly on existing
-Juju machines; they are not subordinate charms. BIRD runs on the host, not on
-the DPU. The DPU charm observes forwarding configuration; it does not create it.
+Juju machines; they are not subordinate charms. BIRD runs wherever routing is required: on hosts or on DPUs for their own
+underlay. The DPU observer only observes forwarding configuration; it does not
+create it. MAAS determines rack membership per BIRD unit, not per application.
 
 ```mermaid
 flowchart LR
     MAAS[MAAS HTTPS API] --> INV[maas-inventory]
-    INV -->|rack A inventory| A[bird: one unit per host in rack A]
-    INV -->|rack B inventory| B[bird: one unit per host in rack B]
-    DA[Attachment providers in rack A] --> A
-    DB[Attachment providers in rack B] --> B
+    subgraph BIRD[bird application]
+        A[bird/0 in rack A]
+        B[bird/1 in rack B]
+    end
+    INV -->|unit-0 response| A
+    INV -->|unit-1 response| B
+    subgraph DPUS[dpu-attachments application]
+        DA[Card observer in rack A]
+        DB[Card observer in rack B]
+    end
+    DA --> A
+    DB --> B
     WA[Workload readiness in rack A] --> A
     WB[Workload readiness in rack B] --> B
     A <-->|unnumbered BGP and BFD| TA[Rack A switches]

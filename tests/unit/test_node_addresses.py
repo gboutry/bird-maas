@@ -13,7 +13,7 @@ from maas_bird.rack_runtime import MigrationRequired
 from maas_bird.resolver import resolve_rack
 from ops import testing
 
-from tests.factories import authoritative_inventory, consumer_config, rack_inputs, ten_vf_inputs
+from tests.factories import consumer_config, inventory_response, rack_inputs, ten_vf_inputs
 
 
 def node_inputs():
@@ -117,9 +117,7 @@ def test_node_mode_hook_still_checks_native_addresses_before_applying(
     monkeypatch.setattr("maas_bird.rack_runtime.RackService", lambda **_: service)
     secret = testing.Secret({s.id: "test-only" for s in resolve_rack(**inputs).sessions})
     relations = {
-        testing.Relation(
-            "inventory", remote_app_data=encode(authoritative_inventory(inputs["inventory"]))
-        ),
+        testing.Relation("inventory", remote_app_data=inventory_response(inputs["inventory"])),
         testing.Relation(
             "attachments",
             remote_units_data={n: encode(d) for n, d in enumerate(inputs["attachments"])},

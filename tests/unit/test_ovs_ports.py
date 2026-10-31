@@ -180,7 +180,7 @@ def test_ovs_relation_roundtrip_and_resolver_preserve_native_identity():
     for document in inputs["attachments"]:
         assert encode(decode(Attachments, encode(document))) == encode(document)
         selected = attachments_for_host(
-            encode(document), "a", {link.identity for link in inputs["local_links"]}
+            encode(document), {link.identity for link in inputs["local_links"]}
         )
         assert selected == document
     plan = resolve_rack(**inputs)

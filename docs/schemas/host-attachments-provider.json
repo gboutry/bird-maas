@@ -416,18 +416,6 @@
   },
   "description": "Provider unit data, one document per DPU unit.",
   "properties": {
-    "rack": {
-      "anyOf": [
-        {
-          "type": "string"
-        },
-        {
-          "type": "null"
-        }
-      ],
-      "default": null,
-      "title": "Rack"
-    },
     "cards": {
       "anyOf": [
         {

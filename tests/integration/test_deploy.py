@@ -10,6 +10,7 @@ from pathlib import Path
 
 import jubilant
 import pytest
+from maas_bird.inventory import read_response
 
 ROOT = Path(__file__).resolve().parents[2]
 pytestmark = pytest.mark.integration
@@ -19,9 +20,7 @@ def test_three_principals(juju: jubilant.Juju):
     for name in ["maas-inventory", "dpu-attachments", "bird"]:
         path = ROOT / "charms" / name / f"{name}_amd64.charm"
         assert path.exists(), f"Pack {name} first"
-        juju.deploy(
-            str(path), app=name, config={"rack": "a"} if name != "maas-inventory" else None
-        )
+        juju.deploy(str(path), app=name)
     juju.integrate("maas-inventory:inventory", "bird:inventory")
     juju.integrate("dpu-attachments:attachments", "bird:attachments")
     status = juju.wait(
@@ -43,14 +42,20 @@ def relation_inventory(juju, app):
     if not entries:
         return None
     data = entries[0].get("application-data", {})
-    return json.loads(data["hosts"]) if "hosts" in data else None
+    document = read_response(data, app + "/0")
+    return (
+        [document.host.model_dump(mode="json")]
+        if document.host
+        else ([] if document.scope_state in {"conflict", "revoked"} else None)
+    )
 
 
 def test_two_rack_https_inventory_delivery_and_removed_host(juju: jubilant.Juju, tmp_path):
     """Actual secret grants, HTTPS, hooks and rack databags; no routing enabled.
 
-    Synthetic MAAS identities deliberately cannot authorize these LXD hosts.
-    This proves delivery and containment, not a physical inventory integration.
+    Native UUIDs are read from isolated LXD consumers into a fake HTTPS MAAS API.
+    BIRD stays disabled. This proves delivery and containment, not production
+    inventory integration or routing activation.
     """
     juju.deploy(ROOT / "charms/maas-inventory/maas-inventory_amd64.charm", app="inventory")
     for rack in ("a", "b"):
@@ -58,7 +63,6 @@ def test_two_rack_https_inventory_delivery_and_removed_host(juju: jubilant.Juju,
             juju.deploy(
                 ROOT / "charms" / charm / f"{charm}_amd64.charm",
                 app=f"{prefix}-{rack}",
-                config={"rack": rack},
             )
         juju.integrate("inventory:inventory", f"bird-{rack}:inventory")
         juju.integrate(f"dpu-{rack}:attachments", f"bird-{rack}:attachments")
@@ -77,7 +81,9 @@ def test_two_rack_https_inventory_delivery_and_removed_host(juju: jubilant.Juju,
     machines = [
         {
             "system_id": "machine-" + rack,
-            "hardware_uuid": "synthetic-" + rack,
+            "hardware_uuid": juju.ssh(f"bird-{rack}/0", "cat /sys/class/dmi/id/product_uuid")
+            .strip()
+            .lower(),
             "tag_names": ["rack-" + rack],
             "private_metadata": "must-not-escape",
         }
@@ -125,9 +131,8 @@ def test_two_rack_https_inventory_delivery_and_removed_host(juju: jubilant.Juju,
             "host-identities": json.dumps(allocations),
         },
     )
-    # Consumers must issue their rack requests even while disabled for forwarding.
-    for rack in ("a", "b"):
-        juju.config("bird-" + rack, {"enabled": True})
+    # Disabled units still request their own native identity; no rack config
+    # or routing activation is needed for the provider's per-unit authority.
     juju.wait(
         lambda s: (
             jubilant.all_active(s, "inventory") and jubilant.all_blocked(s, "bird-a", "bird-b")
@@ -143,7 +148,9 @@ def test_two_rack_https_inventory_delivery_and_removed_host(juju: jubilant.Juju,
     before_b = relation_inventory(juju, "bird-b")
     juju.config("inventory", {"host-identities": json.dumps(allocations[1:])})
     juju.wait(
-        lambda s: jubilant.all_active(s, "inventory") and relation_inventory(juju, "bird-a") == [],
+        lambda s: (
+            jubilant.all_blocked(s, "inventory") and relation_inventory(juju, "bird-a") == []
+        ),
         timeout=300,
         successes=3,
     )

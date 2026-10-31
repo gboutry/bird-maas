@@ -37,9 +37,9 @@ def resolve_rack(uid, inventory, attachments, advertisements, local_links, confi
     if local_links is None:
         raise NotReady("Local link discovery is unavailable")
     if inventory.scope_state in {"conflict", "revoked"}:
-        raise AuthorizationWithdrawn("MAAS application scope was withdrawn")
+        raise AuthorizationWithdrawn("MAAS unit scope was withdrawn")
     if inventory.scope_state == "pending":
-        raise NotReady("MAAS application membership is pending")
+        raise NotReady("MAAS unit identity is pending")
     mode = advertisement_mode(config)
     if not isinstance(inventory.rack, str) or not re.fullmatch(
         r"[a-zA-Z0-9_-]{1,48}", inventory.rack

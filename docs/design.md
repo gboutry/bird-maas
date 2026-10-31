@@ -1,73 +1,72 @@
-# Rack-scoped routing design
+# Unit-scoped routing design
 
 ## Ownership and scale
 
 One MAAS adapter holds the MAAS credential. Its leader performs GET-only HTTPS
-requests with certificate verification and no redirects. That limits this
-client's behavior; it does not make an otherwise privileged MAAS token read-only
-at the server. Use the least privileged service identity MAAS actually supports.
-No API keys, full machine objects or unrelated MAAS metadata enter relations.
+requests with certificate verification and no redirects. This client does not
+make an otherwise privileged MAAS token read-only at the server. Use the least
+privileged service identity MAAS supports. No API keys, full machine objects or
+unrelated MAAS metadata enter relations.
 
-Each BIRD unit publishes its observed DMI UUID. The adapter joins every active
-unit's UUID to fresh MAAS records and requires all members of an application to
-belong to the same approved rack. Neither BIRD nor the DPU observer has a `rack`
-config option. Once established, a relation's rack binding is immutable. The
-adapter publishes only that rack's hosts and peers to that relation. Each BIRD unit selects its physical
-DMI UUID, then selects matching card identities and host/domain workload headers
-before validating payloads. A malformed unrelated producer cannot block a local
-withdrawal. A separate fabric controller is not required.
+A BIRD application can span racks. Each unit publishes its native DMI UUID; the
+adapter joins that UUID independently to MAAS and an approved `rack-<id>` tag.
+Neither the BIRD application nor the DPU application selects a rack. A bad or
+unknown unit cannot choose the rack of its neighbors. A separate fabric
+controller and DPU MAAS credentials are unnecessary.
 
-With 60 racks of 40 hosts, the topology is one inventory app, 60 BIRD apps and up
-to 60 DPU observer apps. BIRD/DPU/workload relation fan-out stays inside each rack.
-A changed relation is serviced individually; a MAAS refresh can update all rack
-slices, while canonical unchanged databags generate no writes. Relation-event
-requests reuse a bounded positive/negative MAAS cache. Each JSON field is limited
-to 48 KiB. Content/property checks are not evidence that a 2,400-unit Juju model
-meets an event-latency or controller-capacity objective.
+A deployment can use one BIRD app for hosts and one DPU observer app across its
+racks. Separate BIRD apps remain useful when operators need different application
+policy, upgrades, or secret trust boundaries. Application configuration and Juju
+secret grants are shared across that application's units. BIRD may also run on
+DPUs for their own routed underlay; attachment observation remains a separate
+role and does not provision OVS.
+
+The provider writes one application-databag field `unit-<id>` per actual consumer
+unit. Its JSON value contains only that unit's own host and approved TOR policy.
+Every value is bounded to 48 KiB; there is no single all-rack host array to exceed
+that bound. Canonical unchanged responses cause no writes. Initial bindings and
+new unit identities require a fresh MAAS fetch; ordinary relation events reuse a
+bounded cache for already bound units. Application relation changes can still
+fan out across units. The 60-rack wire representation is tested, but Juju event
+latency and controller capacity at that scale have not been measured.
 
 ## Relations
 
-Wire format is one canonical JSON value per named relation field. The private
-shared library is not a registered public Charmhub interface. Schemas are
-exported directly from the models under `docs/schemas/`; additive unknown fields
-are ignored, while invalid known fields reject the snapshot.
+The shared library is a private project interface, not a registered Charmhub
+interface. Schemas under `docs/schemas/` are exported from the runtime models.
+The inventory provider application databag contains addressed JSON documents;
+other interfaces use one canonical JSON value per named field.
 
 | Endpoint | Interface | Writer | Fields and meaning |
 |---|---|---|---|
-| `inventory` | `machine-inventory` | Each BIRD unit (consumer unit) | `system_uuid`: observed local DMI UUID |
-| `inventory` | `machine-inventory` | Inventory leader (provider app) | `rack`, `member_uuids`, `scope_state`, `hosts`: MAAS-derived membership, authorization state and selected identities/peers |
-| `attachments` | `host-attachments` | BIRD leader (consumer app) | `rack`: delivery context forwarded from authoritative inventory |
-| `attachments` | `host-attachments` | Each attachment-provider unit | `rack`, `cards`: card identity and attachment observations |
-| `advertisements` | `route-advertisements` | Workload owner (provider unit) | `rack`, `machine_id`, `domain`, `advertisements`: complete readiness snapshot for that host/domain |
+| `inventory` | `machine-inventory` | Each BIRD unit | `system_uuid`: observed local DMI UUID |
+| `inventory` | `machine-inventory` | Inventory leader | `unit-<id>`: unit name, bound UUID, MAAS rack, authorization state and one host record |
+| `attachments` | `host-attachments` | Each DPU observer unit | `cards`: native card identity and attachment observations; no rack header |
+| `advertisements` | `route-advertisements` | Workload owner unit | `rack`, `machine_id`, `domain`, `advertisements`: readiness for that host/domain |
 
-Endpoint names are the names used in `juju integrate`; interface names identify
-the relation contract. For example, integrate `maas-inventory:inventory` with
-`bird-rack-a:inventory`.
+For example, a response for `bird/12` is stored under `unit-12` and includes
+`unit_name: bird/12`. The consumer validates both the addressed key and its full
+unit name, then requires the returned UUID to match its own native identity.
+It never selects another unit's response. Each host record contains MAAS machine
+ID, UUID, rack, ASN, router ID and approved TOR identities.
 
-A host record contains `machine_id`, `system_uuid`, `rack`, `local_asn`,
-`router_id`, and peers with `id`, `chassis_id`, `asn`. The inventory app joins
-explicit routing allocations with MAAS `system_id`, `hardware_uuid` and exactly
-one `rack-<id>` tag. Missing or invalid host observations confer no new authority.
-A complete successful host removal revokes it; a failed API request does not
-synthesize an empty snapshot. During an outage, only restrictions of previously
-published authority may be delivered. Initial binding and added members require
-a fresh API response; a cached response cannot introduce new membership.
+A unit response is `ready`, `pending`, `conflict` or `revoked`. Incomplete identity
+or an API outage is pending and cannot grant new authority. A successful response
+proving unknown, duplicate or invalid identity withdraws only affected units.
+A bound unit moving rack or changing UUID leaves a durable revoked tombstone in
+its own response. Reintegrate deliberately after reviewing such a move. This
+binding survives leader replacement. During outages, current policy removals
+still restrict previously published hosts and peers. Another rack remains
+independent.
 
-The provider publishes `ready` for complete valid membership, `pending` when
-identity or API inputs are incomplete, `conflict` for ambiguous or mixed-rack
-membership, and `revoked` when a bound application's complete membership moves
-to another rack. Conflicts publish zero authority. A rack move retains the old
-rack header and a durable revoked tombstone: correcting configuration cannot
-silently rebind that relation, even after leader state is lost. Reintegrate the
-application deliberately after reviewing its placement. Pending membership can
-carry known removals but cannot authorize new routes.
+There is one current relation contract. Application-wide inventory responses and
+consumer-selected rack headers are not read or used as fallback authority.
 
-DPU units need neither MAAS credentials nor an inventory relation. They project
-one native card observation into each consumer's requested delivery context.
-That header does not prove the DPU belongs to a rack: BIRD still joins native
-card identity, MAAS host identity and approved TOR chassis. A changed delivery
-context empties that relation's attachment list under its old header before any
-fallible discovery. Other consumers remain independent.
+DPU observers publish the same local card observations regardless of which
+racks share the application. BIRD selects observations using its native card
+identity, then checks attachments against its own MAAS-authorized TORs. Missing
+card observations and departed producers revoke only their previously selected
+attachments. DPU observations have no rack scope header.
 
 An attachment identifies a card using `{scheme,value}` and has `id`, `domain`,
 `function`, `observed_function`, `ovs_port`, `vlan`, `chassis_id`,

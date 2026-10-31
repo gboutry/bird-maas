@@ -3,11 +3,12 @@ from unittest.mock import Mock
 
 from maas_bird import discovery
 from maas_bird.interfaces import decode, encode
-from maas_bird.models import Attachments, Card, Identity, Inventory, InventoryRequest, RackRequest
+from maas_bird.inventory import read_response
+from maas_bird.models import Attachments, Card, Identity, InventoryRequest
 from maas_bird.resolver import resolve_rack
 from ops import testing
 
-from tests.factories import authoritative_inventory, consumer_config, rack_inputs
+from tests.factories import consumer_config, inventory_response, rack_inputs
 
 
 def test_all_charms_are_principals(charm_context):
@@ -46,11 +47,11 @@ def test_dpu_publishes_unique_card_identity(charm_context, monkeypatch):
     identity = Identity(scheme="devlink-serial", value="card1")
     monkeypatch.setattr("maas_bird.discovery.cards", lambda: {"pf0": identity, "pf1": identity})
     ctx = charm_context("dpu-attachments")
-    relation = testing.Relation("attachments", remote_app_data=encode(RackRequest(rack="a")))
+    relation = testing.Relation("attachments")
     out = ctx.run(ctx.on.relation_joined(relation), testing.State(relations={relation}))
     data = out.get_relation(relation.id).local_unit_data
     assert decode(Attachments, data) == Attachments(
-        rack="a", cards=(Card(identity=identity, attachments=()),)
+        cards=(Card(identity=identity, attachments=()),)
     )
 
 
@@ -92,11 +93,11 @@ def test_maas_leader_publishes_and_does_not_leak_secret(charm_context, monkeypat
             },
         ),
     )
-    published = decode(Inventory, out.get_relation(relation.id).local_app_data)
+    published = read_response(out.get_relation(relation.id).local_app_data, "remote/0")
     assert published.rack == "a" and published.scope_state == "ready"
-    assert published.member_uuids == ("host-uuid",)
-    assert published.hosts is not None
-    assert [host.machine_id for host in published.hosts] == ["m1"]
+    assert published.system_uuid == "host-uuid"
+    assert published.host is not None
+    assert published.host.machine_id == "m1"
     assert "consumer" not in str(out.get_relation(relation.id).local_app_data)
 
 
@@ -136,9 +137,7 @@ def test_bird_complete_relations_apply(inputs, charm_context, monkeypatch):
     }
     monkeypatch.setattr("maas_bird.rack_runtime.RackService", lambda **kwargs: service)
     ctx = charm_context("bird")
-    inv = testing.Relation(
-        "inventory", remote_app_data=encode(authoritative_inventory(inputs["inventory"]))
-    )
+    inv = testing.Relation("inventory", remote_app_data=inventory_response(inputs["inventory"]))
     attachments = testing.Relation(
         "attachments",
         remote_units_data={n: encode(doc) for n, doc in enumerate(inputs["attachments"])},
@@ -168,9 +167,7 @@ def test_dpu_selects_own_mapping_from_shared_application_config(charm_context, m
     ctx.run(
         ctx.on.config_changed(),
         testing.State(
-            relations={
-                testing.Relation("attachments", remote_app_data=encode(RackRequest(rack="a")))
-            },
+            relations={testing.Relation("attachments")},
             config={
                 "attachments": json.dumps(
                     [
@@ -238,9 +235,7 @@ def test_service_address_must_be_an_actual_loopback_host_route(inputs, charm_con
     }
     monkeypatch.setattr("maas_bird.rack_runtime.RackService", lambda **kwargs: service)
     ctx = charm_context("bird")
-    inv = testing.Relation(
-        "inventory", remote_app_data=encode(authoritative_inventory(inputs["inventory"]))
-    )
+    inv = testing.Relation("inventory", remote_app_data=inventory_response(inputs["inventory"]))
     attachments = testing.Relation(
         "attachments",
         remote_units_data={n: encode(doc) for n, doc in enumerate(inputs["attachments"])},
@@ -288,7 +283,7 @@ def test_bird_numa_context_event_uses_policy_runtime(numa_inputs, charm_context,
     monkeypatch.setattr("maas_bird.rack_runtime.RackService", lambda **kwargs: service)
     ctx = charm_context("bird")
     inv = testing.Relation(
-        "inventory", remote_app_data=encode(authoritative_inventory(numa_inputs["inventory"]))
+        "inventory", remote_app_data=inventory_response(numa_inputs["inventory"])
     )
     attachments = testing.Relation(
         "attachments",
@@ -340,7 +335,7 @@ def test_bird_multiple_domains_use_one_host_runtime(domain_inputs, charm_context
     monkeypatch.setattr("maas_bird.rack_runtime.RackService", lambda **kwargs: service)
     ctx = charm_context("bird")
     inv = testing.Relation(
-        "inventory", remote_app_data=encode(authoritative_inventory(domain_inputs["inventory"]))
+        "inventory", remote_app_data=inventory_response(domain_inputs["inventory"])
     )
     attachments = testing.Relation(
         "attachments",
@@ -386,9 +381,7 @@ def test_discovery_outage_cannot_block_known_workload_withdrawal(charm_context, 
     service.credentials_changed.return_value = False
     monkeypatch.setattr("maas_bird.rack_runtime.RackService", lambda **kwargs: service)
     secret = testing.Secret({s.id: "test-only" for s in previous.sessions})
-    inv = testing.Relation(
-        "inventory", remote_app_data=encode(authoritative_inventory(inputs["inventory"]))
-    )
+    inv = testing.Relation("inventory", remote_app_data=inventory_response(inputs["inventory"]))
     doc = inputs["advertisements"][0].model_copy(update={"advertisements": ()})
     ads = testing.Relation("advertisements", remote_units_data={0: encode(doc)})
     ctx = charm_context("bird")

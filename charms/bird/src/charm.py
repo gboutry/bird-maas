@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Rack-scoped principal BIRD operator; static host policy is externally owned."""
+"""Principal BIRD operator with unit MAAS authority; static host policy is external."""
 
 import json
 from ipaddress import IPv4Interface
@@ -7,8 +7,9 @@ from ipaddress import IPv4Interface
 import ops
 from maas_bird import authority, discovery, external_policy
 from maas_bird.charm_support import config_string, json_list, observe, relations, secret_content
-from maas_bird.interfaces import application_data, publish
-from maas_bird.models import Inventory, InventoryRequest, RackRequest, advertisement_mode
+from maas_bird.interfaces import publish
+from maas_bird.inventory import read_response
+from maas_bird.models import Inventory, InventoryRequest, advertisement_mode
 from maas_bird.observations import collect
 from maas_bird.rack import ScopeError, rack_id
 from maas_bird.rack_runtime import RackService
@@ -44,31 +45,33 @@ class BirdCharm(ops.CharmBase):
             raise
         if publish_requests:
             publish(relation, self.unit, InventoryRequest(system_uuid=uid))
-            if self.unit.is_leader():
-                publish(relation, self.app, RackRequest())  # Retire old consumer-selected scope.
-        inventory = application_data(relation, Inventory)
-        if inventory.scope_state in {"conflict", "revoked"} or inventory.hosts == ():
-            raise AuthorizationWithdrawn("MAAS application scope was withdrawn")
-        if inventory.scope_state not in {"ready", "pending"} or inventory.rack is None:
-            raise NotReady("Waiting for MAAS-derived application scope")
-        rack = rack_id(inventory.rack)
+        document = read_response(relation.data[relation.app], self.unit.name)
         previous = self._service().state()
         if previous is not None and previous.host.system_uuid != uid:
             raise AuthorizationWithdrawn("Local hardware identity changed")
+        if document.scope_state in {"conflict", "revoked"}:
+            raise AuthorizationWithdrawn("MAAS unit scope was withdrawn")
+        if document.scope_state not in {"ready", "pending"} or document.rack is None:
+            raise NotReady("Waiting for MAAS-derived unit scope")
+        rack = rack_id(document.rack)
+        if document.system_uuid != uid:
+            raise AuthorizationWithdrawn("Inventory response identifies another hardware UUID")
         if previous is not None and previous.host.rack != rack:
             raise ScopeError("Accepted rack scope changed; reintegrate inventory")
-        if uid not in (inventory.member_uuids or ()):
-            if previous is not None:
-                raise AuthorizationWithdrawn("Unit membership withdrawn from MAAS scope")
-            raise NotReady("Waiting for this unit's authoritative MAAS membership")
-        if publish_requests and self.unit.is_leader() and inventory.scope_state == "ready":
-            for attachment in relations(self, "attachments", event):
-                publish(attachment, self.app, RackRequest(rack=rack))
         return rack, relation, uid
 
     def _inputs(self, event, *, publish_requests=True):
         rack, relation, uid = self._inventory(event, publish_requests=publish_requests)
-        inventory = application_data(relation, Inventory)
+        document = read_response(relation.data[relation.app], self.unit.name)
+        inventory = Inventory(
+            rack=document.rack,
+            scope_state=document.scope_state,
+            hosts=(document.host,)
+            if document.host
+            else ()
+            if document.rack and document.system_uuid
+            else None,
+        )
         if inventory.rack is None:
             raise NotReady("Waiting for rack-scoped inventory")
         if inventory.rack != rack:

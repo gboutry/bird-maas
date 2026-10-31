@@ -9,12 +9,14 @@ from uuid import NAMESPACE_DNS, uuid5
 
 import yaml
 from maas_bird.discovery import LocalLink
+from maas_bird.inventory import response_data
 from maas_bird.models import (
     Advertisements,
     Attachments,
     Identity,
     Inventory,
     OvsPort,
+    UnitInventory,
     UplinkBinding,
 )
 
@@ -240,9 +242,8 @@ def rack_inputs(inputs=None):
                 }
             ]
         )
-    data["config"].update(rack="a", **{"routing-contexts": "[]"})
+    data["config"].update({"routing-contexts": "[]"})
     data["inventory"] = data["inventory"].model_copy(update={"rack": "a"})
-    data["attachments"] = [doc.model_copy(update={"rack": "a"}) for doc in data["attachments"]]
     advertisements = []
     grouped = {}
     for doc in data["advertisements"]:
@@ -346,9 +347,7 @@ def ten_vf_inputs():
             )
         )
     data["config"]["routing-domains"] = json.dumps(domains)
-    data["attachments"] = [
-        Attachments.model_validate(dict(rack="a", cards=[card])) for card in cards
-    ]
+    data["attachments"] = [Attachments.model_validate(dict(cards=[card])) for card in cards]
     data["advertisements"] = ads
     return data
 
@@ -476,13 +475,19 @@ def ovs_snapshot_text(binding):
     return "\n".join(json.dumps(document) for document in documents)
 
 
-def authoritative_inventory(inventory):
-    """Build the provider's complete, MAAS-authorized application fixture."""
-    return inventory.model_copy(
-        update={
-            "scope_state": "ready",
-            "member_uuids": tuple(sorted(h.system_uuid for h in inventory.hosts or ())),
-        }
+def inventory_response(inventory, unit_name="bird/0"):
+    """Build the provider's unit-addressed, MAAS-authorized response fixture."""
+    hosts = inventory.hosts or ()
+    assert len(hosts) == 1
+    host = hosts[0]
+    return response_data(
+        UnitInventory(
+            unit_name=unit_name,
+            system_uuid=host.system_uuid,
+            rack=host.rack,
+            scope_state="ready",
+            host=host,
+        )
     )
 
 

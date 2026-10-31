@@ -1,44 +1,8 @@
-# Illustrative existing Juju machines only; replace every placement and identity.
-# No workload publisher is included: integrate a real advertisements provider
-# before enabling routing. Keep enabled=false until all prerequisites are met.
-# Select the DPU artifact matching its OS architecture (arm64 for ARM cards).
+# Illustrative two-rack deployment; replace every placement, identity and secret.
+# Both consumer applications span racks. MAAS authorizes each BIRD unit separately.
+# Keep routing disabled until persistent networking and switch prerequisites pass.
+# Select the DPU artifact matching its OS architecture.
 applications:
-  bird-a:
-    charm: ../../charms/bird/bird_amd64.charm
-    num_units: 1
-    to:
-    - '1'
-    options:
-      enabled: false
-      protected-prefixes: 192.0.2.0/24
-      bgp-credentials: secret:REPLACE-GRANTED-a
-      routing-domains: '[{"id":"ceph-public","import_prefixes":["10.60.1.0/24","10.60.2.0/24"],"export_allowlist":["10.60.1.0/24"],"contexts":[{"id":"numa0","machine_id":"example-host-a","numa_node":0,"table":3100,"rule_priority":10000,"sources":["10.60.1.11/32"]},{"id":"numa1","machine_id":"example-host-a","numa_node":1,"table":3101,"rule_priority":10100,"sources":["10.60.1.12/32"]}]},{"id":"ceph-replication","import_prefixes":["10.61.1.0/24","10.61.2.0/24"],"export_allowlist":["10.61.1.0/24"],"contexts":[{"id":"numa0","machine_id":"example-host-a","numa_node":0,"table":3200,"rule_priority":10200,"sources":["10.61.1.11/32"]},{"id":"numa1","machine_id":"example-host-a","numa_node":1,"table":3201,"rule_priority":10300,"sources":["10.61.1.12/32"]}]}]'
-  dpu-a:
-    charm: ../../charms/dpu-attachments/dpu-attachments_amd64.charm
-    num_units: 2
-    to:
-    - '2'
-    - '3'
-    options:
-      attachments: '[{"serial":"REPLACE-a-CARD-0","id":"a-ceph-public-tor1","function":{"controller":1,"pf":0,"vf":63},"host_function":{"controller":0,"pf":0,"vf":63},"domain":"ceph-public","vlan":3410,"uplink":"p0","chassis_id":"02:00:00:01:00:01","peer_link_local":"fe80::1"},{"serial":"REPLACE-a-CARD-1","id":"a-ceph-public-tor2","function":{"controller":1,"pf":0,"vf":63},"host_function":{"controller":0,"pf":0,"vf":63},"domain":"ceph-public","vlan":3411,"uplink":"p0","chassis_id":"02:00:00:01:00:02","peer_link_local":"fe80::1"},{"serial":"REPLACE-a-CARD-0","id":"a-ceph-replication-tor1","function":{"controller":1,"pf":0,"vf":64},"host_function":{"controller":0,"pf":0,"vf":64},"domain":"ceph-replication","vlan":3420,"uplink":"p0","chassis_id":"02:00:00:01:00:01","peer_link_local":"fe80::1"},{"serial":"REPLACE-a-CARD-1","id":"a-ceph-replication-tor2","function":{"controller":1,"pf":0,"vf":64},"host_function":{"controller":0,"pf":0,"vf":64},"domain":"ceph-replication","vlan":3421,"uplink":"p0","chassis_id":"02:00:00:01:00:02","peer_link_local":"fe80::1"}]'
-  bird-b:
-    charm: ../../charms/bird/bird_amd64.charm
-    num_units: 1
-    to:
-    - '4'
-    options:
-      enabled: false
-      protected-prefixes: 192.0.2.0/24
-      bgp-credentials: secret:REPLACE-GRANTED-b
-      routing-domains: '[{"id":"ceph-public","import_prefixes":["10.60.1.0/24","10.60.2.0/24"],"export_allowlist":["10.60.2.0/24"],"contexts":[{"id":"numa0","machine_id":"example-host-b","numa_node":0,"table":3100,"rule_priority":10000,"sources":["10.60.2.11/32"]},{"id":"numa1","machine_id":"example-host-b","numa_node":1,"table":3101,"rule_priority":10100,"sources":["10.60.2.12/32"]}]},{"id":"ceph-replication","import_prefixes":["10.61.1.0/24","10.61.2.0/24"],"export_allowlist":["10.61.2.0/24"],"contexts":[{"id":"numa0","machine_id":"example-host-b","numa_node":0,"table":3200,"rule_priority":10200,"sources":["10.61.2.11/32"]},{"id":"numa1","machine_id":"example-host-b","numa_node":1,"table":3201,"rule_priority":10300,"sources":["10.61.2.12/32"]}]}]'
-  dpu-b:
-    charm: ../../charms/dpu-attachments/dpu-attachments_amd64.charm
-    num_units: 2
-    to:
-    - '5'
-    - '6'
-    options:
-      attachments: '[{"serial":"REPLACE-b-CARD-0","id":"b-ceph-public-tor1","function":{"controller":1,"pf":0,"vf":63},"host_function":{"controller":0,"pf":0,"vf":63},"domain":"ceph-public","vlan":3410,"uplink":"p0","chassis_id":"02:00:00:02:00:01","peer_link_local":"fe80::1"},{"serial":"REPLACE-b-CARD-1","id":"b-ceph-public-tor2","function":{"controller":1,"pf":0,"vf":63},"host_function":{"controller":0,"pf":0,"vf":63},"domain":"ceph-public","vlan":3411,"uplink":"p0","chassis_id":"02:00:00:02:00:02","peer_link_local":"fe80::1"},{"serial":"REPLACE-b-CARD-0","id":"b-ceph-replication-tor1","function":{"controller":1,"pf":0,"vf":64},"host_function":{"controller":0,"pf":0,"vf":64},"domain":"ceph-replication","vlan":3420,"uplink":"p0","chassis_id":"02:00:00:02:00:01","peer_link_local":"fe80::1"},{"serial":"REPLACE-b-CARD-1","id":"b-ceph-replication-tor2","function":{"controller":1,"pf":0,"vf":64},"host_function":{"controller":0,"pf":0,"vf":64},"domain":"ceph-replication","vlan":3421,"uplink":"p0","chassis_id":"02:00:00:02:00:02","peer_link_local":"fe80::1"}]'
   maas-inventory:
     charm: ../../charms/maas-inventory/maas-inventory_amd64.charm
     num_units: 1
@@ -49,12 +13,29 @@ applications:
       maas-credentials: secret:REPLACE-MAAS-READ-CREDENTIAL
       rack-profiles: '[{"id":"a","peers":[{"id":"a-tor1","chassis_id":"02:00:00:01:00:01","asn":65010},{"id":"a-tor2","chassis_id":"02:00:00:01:00:02","asn":65011}]},{"id":"b","peers":[{"id":"b-tor1","chassis_id":"02:00:00:02:00:01","asn":65020},{"id":"b-tor2","chassis_id":"02:00:00:02:00:02","asn":65021}]}]'
       host-identities: '[{"machine_id":"example-host-a","local_asn":4200000101,"router_id":"10.255.1.1"},{"machine_id":"example-host-b","local_asn":4200000102,"router_id":"10.255.2.1"}]'
+  bird:
+    charm: ../../charms/bird/bird_amd64.charm
+    num_units: 2
+    to:
+    - '1'
+    - '4'
+    options:
+      enabled: false
+      protected-prefixes: 192.0.2.0/24
+      bgp-credentials: secret:REPLACE-GRANTED-BIRD
+      routing-domains: '[{"id":"ceph-public","import_prefixes":["10.60.1.0/24","10.60.2.0/24"],"export_allowlist":["10.60.1.0/24","10.60.2.0/24"],"contexts":[{"id":"numa0","machine_id":"example-host-a","numa_node":0,"table":3100,"rule_priority":10000,"sources":["10.60.1.11/32"]},{"id":"numa1","machine_id":"example-host-a","numa_node":1,"table":3101,"rule_priority":10100,"sources":["10.60.1.12/32"]},{"id":"numa0","machine_id":"example-host-b","numa_node":0,"table":3100,"rule_priority":10000,"sources":["10.60.2.11/32"]},{"id":"numa1","machine_id":"example-host-b","numa_node":1,"table":3101,"rule_priority":10100,"sources":["10.60.2.12/32"]}]},{"id":"ceph-replication","import_prefixes":["10.61.1.0/24","10.61.2.0/24"],"export_allowlist":["10.61.1.0/24","10.61.2.0/24"],"contexts":[{"id":"numa0","machine_id":"example-host-a","numa_node":0,"table":3200,"rule_priority":10200,"sources":["10.61.1.11/32"]},{"id":"numa1","machine_id":"example-host-a","numa_node":1,"table":3201,"rule_priority":10300,"sources":["10.61.1.12/32"]},{"id":"numa0","machine_id":"example-host-b","numa_node":0,"table":3200,"rule_priority":10200,"sources":["10.61.2.11/32"]},{"id":"numa1","machine_id":"example-host-b","numa_node":1,"table":3201,"rule_priority":10300,"sources":["10.61.2.12/32"]}]}]'
+  dpu-attachments:
+    charm: ../../charms/dpu-attachments/dpu-attachments_amd64.charm
+    num_units: 4
+    to:
+    - '2'
+    - '3'
+    - '5'
+    - '6'
+    options:
+      attachments: '[{"serial":"REPLACE-a-CARD-0","id":"a-ceph-public-tor1","function":{"controller":1,"pf":0,"vf":63},"host_function":{"controller":0,"pf":0,"vf":63},"domain":"ceph-public","vlan":3410,"uplink":"p0","chassis_id":"02:00:00:01:00:01","peer_link_local":"fe80::1"},{"serial":"REPLACE-a-CARD-1","id":"a-ceph-public-tor2","function":{"controller":1,"pf":0,"vf":63},"host_function":{"controller":0,"pf":0,"vf":63},"domain":"ceph-public","vlan":3411,"uplink":"p0","chassis_id":"02:00:00:01:00:02","peer_link_local":"fe80::1"},{"serial":"REPLACE-a-CARD-0","id":"a-ceph-replication-tor1","function":{"controller":1,"pf":0,"vf":64},"host_function":{"controller":0,"pf":0,"vf":64},"domain":"ceph-replication","vlan":3420,"uplink":"p0","chassis_id":"02:00:00:01:00:01","peer_link_local":"fe80::1"},{"serial":"REPLACE-a-CARD-1","id":"a-ceph-replication-tor2","function":{"controller":1,"pf":0,"vf":64},"host_function":{"controller":0,"pf":0,"vf":64},"domain":"ceph-replication","vlan":3421,"uplink":"p0","chassis_id":"02:00:00:01:00:02","peer_link_local":"fe80::1"},{"serial":"REPLACE-b-CARD-0","id":"b-ceph-public-tor1","function":{"controller":1,"pf":0,"vf":63},"host_function":{"controller":0,"pf":0,"vf":63},"domain":"ceph-public","vlan":3410,"uplink":"p0","chassis_id":"02:00:00:02:00:01","peer_link_local":"fe80::1"},{"serial":"REPLACE-b-CARD-1","id":"b-ceph-public-tor2","function":{"controller":1,"pf":0,"vf":63},"host_function":{"controller":0,"pf":0,"vf":63},"domain":"ceph-public","vlan":3411,"uplink":"p0","chassis_id":"02:00:00:02:00:02","peer_link_local":"fe80::1"},{"serial":"REPLACE-b-CARD-0","id":"b-ceph-replication-tor1","function":{"controller":1,"pf":0,"vf":64},"host_function":{"controller":0,"pf":0,"vf":64},"domain":"ceph-replication","vlan":3420,"uplink":"p0","chassis_id":"02:00:00:02:00:01","peer_link_local":"fe80::1"},{"serial":"REPLACE-b-CARD-1","id":"b-ceph-replication-tor2","function":{"controller":1,"pf":0,"vf":64},"host_function":{"controller":0,"pf":0,"vf":64},"domain":"ceph-replication","vlan":3421,"uplink":"p0","chassis_id":"02:00:00:02:00:02","peer_link_local":"fe80::1"}]'
 relations:
 - - maas-inventory:inventory
-  - bird-a:inventory
-- - dpu-a:attachments
-  - bird-a:attachments
-- - maas-inventory:inventory
-  - bird-b:inventory
-- - dpu-b:attachments
-  - bird-b:attachments
+  - bird:inventory
+- - dpu-attachments:attachments
+  - bird:attachments

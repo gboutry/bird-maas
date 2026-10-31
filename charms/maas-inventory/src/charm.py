@@ -2,6 +2,7 @@
 """Publish a credential-minimized MAAS inventory; never manage machines."""
 
 import hashlib
+import re
 import ssl
 import time
 from collections import Counter
@@ -9,15 +10,10 @@ from pathlib import Path
 
 import ops
 from maas_bird.charm_support import config_string, json_list, observe, relations, secret_content
-from maas_bird.interfaces import decode, publish
-from maas_bird.maas import (
-    InventoryError,
-    MaasClient,
-    application_scope,
-    normalize_rack,
-    restrict_cached_inventory,
-)
-from maas_bird.models import Inventory, InventoryRequest
+from maas_bird.interfaces import decode
+from maas_bird.inventory import publish_response, read_response, response_key
+from maas_bird.maas import InventoryError, MaasClient, unit_inventory
+from maas_bird.models import InventoryRequest, UnitInventory
 from maas_bird.runtime import write_atomic
 
 
@@ -27,8 +23,6 @@ class MaasInventoryCharm(ops.CharmBase):
     def __init__(self, framework):
         super().__init__(framework)
         self._state.set_default(
-            scopes={},
-            known_racks={},
             machines=[],
             fetched_at=0,
             cache_usable=False,
@@ -44,78 +38,57 @@ class MaasInventoryCharm(ops.CharmBase):
         if not self.unit.is_leader():
             self.unit.status = ops.ActiveStatus("Inventory publication is handled by the leader")
             return
+        active = list(relations(self, "inventory", event))
+        claims = {relation.id: self._unit_requests(relation, event) for relation in active}
         try:
             self._configuration_error = False
-            active = list(relations(self, "inventory", event))
-            requests = {relation.id: self._unit_requests(relation, event) for relation in active}
-            force = self._needs_scope_refresh(active, requests)
+            force = self._needs_scope_refresh(active, claims)
             machines, available = self._machines(None if force else event)
             racks = json_list(config_string(self.config, "rack-profiles"), "rack-profiles")
             identities = json_list(
                 config_string(self.config, "host-identities"), "host-identities"
             )
-            # Identity allocations are global: conflicts must never be partitioned
-            # away and accidentally grant the same ASN/router ID to two racks.
-            for field in ("machine_id", "local_asn", "router_id"):
-                values = [row[field] for row in identities]
-                if len(set(values)) != len(values):
-                    raise ValueError("Duplicate global routing identity allocation")
-            scopes = {
-                key: value
-                for key, value in dict(self._state.scopes).items()
-                if key in {str(relation.id) for relation in active}
-            }
-            known_racks = dict(self._state.known_racks)
-            # Application relation data survives leader replacement. Recover only
-            # previously published bindings, never infer deletion from lost cache.
-            for existing in active:
-                old = decode(Inventory, existing.data[self.app])
-                if old.rack:
-                    scopes.setdefault(str(existing.id), old.rack)
-                    known_racks.update({h.machine_id: old.rack for h in old.hosts or ()})
-            self._state.known_racks = known_racks
-            observed_uuids = [
-                m.get("hardware_uuid")
-                for m in machines
-                if m.get("system_id") in {i["machine_id"] for i in identities}
-                and m.get("hardware_uuid")
-            ]
-            if len(set(observed_uuids)) != len(observed_uuids):
-                raise ValueError("Duplicate global hardware identity")
-            claims = Counter(uid.lower() for values in requests.values() for uid in values if uid)
-            duplicates = {uid for uid, count in claims.items() if count > 1}
+            counts = Counter(
+                request.system_uuid.lower()
+                for units in claims.values()
+                for request in units.values()
+                if request and request.system_uuid
+            )
             issues, pending, published = [], [], 0
+            # A fresh snapshot can change any unit. Cached relation events only
+            # service their own relation, without multiplying ordinary API reads.
             targets = active
             if isinstance(event, ops.RelationEvent) and not self._fresh_snapshot:
-                targets = [r for r in targets if r.id == event.relation.id]
+                targets = [r for r in active if r.id == event.relation.id]
             for relation in targets:
-                try:
-                    inventory = self._relation_inventory(
-                        relation,
-                        requests[relation.id],
+                units = claims[relation.id]
+                for name, request in units.items():
+                    previous = self._previous(relation, name)
+                    uid = request.system_uuid.lower() if request and request.system_uuid else None
+                    document = unit_inventory(
                         machines,
-                        available,
                         racks,
                         identities,
-                        scopes,
-                        duplicates,
+                        request,
+                        previous,
+                        name,
+                        available=available,
+                        fresh=self._fresh_snapshot,
+                        duplicate=uid is not None and counts[uid] > 1,
                     )
-                    publish(relation, self.app, inventory)
-                    if inventory.scope_state in {"conflict", "revoked"}:
-                        issues.append(str(relation.id))
-                    elif inventory.scope_state == "pending":
-                        pending.append(str(relation.id))
+                    publish_response(relation, self.app, document)
+                    if document.scope_state in {"conflict", "revoked"}:
+                        issues.append(name)
+                    elif document.scope_state == "pending":
+                        pending.append(name)
                     published += 1
-                except (ValueError, KeyError):
-                    self._reject_relation(relation, scopes)
-                    issues.append(str(relation.id))
-            self._state.scopes = scopes
+                self._prune(relation, units)
             self.unit.status = (
-                ops.BlockedStatus("Conflicting MAAS application membership: " + ",".join(issues))
+                ops.BlockedStatus("Conflicting MAAS unit identities: " + ",".join(issues))
                 if issues
-                else ops.WaitingStatus("Waiting for complete MAAS application membership")
+                else ops.WaitingStatus("Waiting for MAAS unit identity")
                 if pending and available
-                else ops.ActiveStatus(f"Published {published} rack inventory slices")
+                else ops.ActiveStatus(f"Published {published} unit inventories")
                 if available
                 else ops.BlockedStatus(
                     "Check MAAS credentials, verified HTTPS URL and CA; only removals published"
@@ -125,94 +98,52 @@ class MaasInventoryCharm(ops.CharmBase):
                     "MAAS unavailable; only cached authorization removals published"
                 )
             )
-        except InventoryError:
-            self.unit.status = ops.WaitingStatus("MAAS unavailable; last inventory retained")
         except (ValueError, KeyError, ops.ModelError):
-            for relation in relations(self, "inventory", event):
-                self._reject_relation(relation, dict(self._state.scopes))
+            for relation in active:
+                for name in claims[relation.id]:
+                    old = self._previous(relation, name)
+                    publish_response(
+                        relation,
+                        self.app,
+                        old.model_copy(
+                            update={
+                                "host": None,
+                                "scope_state": "revoked"
+                                if old.scope_state == "revoked"
+                                else "conflict",
+                            }
+                        ),
+                    )
+                self._prune(relation, claims[relation.id])
             self.unit.status = ops.BlockedStatus(
                 "Check MAAS secret, HTTPS URL and inventory policy"
             )
 
-    def _reject_relation(self, relation, scopes):
-        old = decode(Inventory, relation.data[self.app])
-        publish(
-            relation,
-            self.app,
-            Inventory(
-                rack=old.rack or scopes.get(str(relation.id)),
-                hosts=(),
-                member_uuids=old.member_uuids,
-                scope_state="revoked" if old.scope_state == "revoked" else "conflict",
-            ),
-        )
+    def _previous(self, relation, name):
+        try:
+            return read_response(relation.data[self.app], name)
+        except ValueError:
+            # Corrupt accepted authority is never evidence for a fresh binding.
+            return UnitInventory(unit_name=name, scope_state="revoked")
 
-    def _needs_scope_refresh(self, active, requests):
+    def _prune(self, relation, units):
+        wanted = {response_key(name) for name in units}
+        for key in list(relation.data[self.app]):
+            if re.fullmatch(r"unit-[0-9]+", key) and key not in wanted:
+                del relation.data[self.app][key]
+
+    def _needs_scope_refresh(self, active, claims):
         for relation in active:
-            values = requests[relation.id]
-            if not values or any(not uid for uid in values):
-                continue
-            old = decode(Inventory, relation.data[self.app])
-            members = tuple(sorted(uid.lower() for uid in values))
-            if old.rack is None or old.scope_state != "ready" or old.member_uuids != members:
-                return True
+            for name, request in claims[relation.id].items():
+                if not request or not request.system_uuid:
+                    continue
+                old = self._previous(relation, name)
+                if old.rack is None or old.system_uuid != request.system_uuid.lower():
+                    return True
         return False
 
-    def _relation_inventory(
-        self, relation, requests, machines, available, racks, identities, scopes, duplicates
-    ):
-        old = decode(Inventory, relation.data[self.app])
-        previous = scopes.get(str(relation.id))
-        if old.scope_state == "revoked":
-            return old.model_copy(update={"hosts": ()})
-        if not available:
-            restricted = restrict_cached_inventory(
-                old.model_copy(update={"rack": previous}), racks, identities
-            )
-            return restricted.model_copy(update={"scope_state": "pending"})
-        scope = application_scope(machines, racks, identities, requests, previous)
-        if any(uid and uid.lower() in duplicates for uid in requests):
-            return Inventory(
-                rack=previous, hosts=(), member_uuids=old.member_uuids, scope_state="conflict"
-            )
-        if scope.state in {"rejected", "changed"}:
-            return Inventory(
-                rack=previous,
-                hosts=(),
-                member_uuids=old.member_uuids,
-                scope_state="revoked" if scope.state == "changed" else "conflict",
-            )
-        if scope.state == "pending":
-            if previous is None:
-                return Inventory(scope_state="pending")
-            inventory, bindings = normalize_rack(
-                machines, racks, identities, previous, dict(self._state.known_racks)
-            )
-            self._state.known_racks = bindings
-            return inventory.model_copy(
-                update={
-                    "member_uuids": old.member_uuids,
-                    "scope_state": "pending",
-                }
-            )
-        if (previous is None or old.member_uuids != scope.members) and not self._fresh_snapshot:
-            return Inventory(rack=previous, hosts=None, scope_state="pending")
-        rack = scope.rack
-        assert rack is not None
-        inventory, bindings = normalize_rack(
-            machines, racks, identities, rack, dict(self._state.known_racks)
-        )
-        self._state.known_racks = bindings
-        scopes[str(relation.id)] = rack
-        return inventory.model_copy(
-            update={
-                "member_uuids": scope.members,
-                "scope_state": "ready",
-            }
-        )
-
     def _unit_requests(self, relation, event):
-        requests = []
+        result = {}
         for unit in sorted(relation.units, key=lambda item: item.name):
             if (
                 isinstance(event, ops.RelationDepartedEvent)
@@ -221,10 +152,10 @@ class MaasInventoryCharm(ops.CharmBase):
             ):
                 continue
             try:
-                requests.append(decode(InventoryRequest, relation.data[unit]).system_uuid)
+                result[unit.name] = decode(InventoryRequest, relation.data[unit])
             except (ValueError, TypeError):
-                requests.append(None)
-        return requests
+                result[unit.name] = None
+        return result
 
     def _machines(self, event):
         self._fresh_snapshot = False

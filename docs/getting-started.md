@@ -249,10 +249,10 @@ juju integrate dpu-rack-a:attachments bird-rack-a:attachments
 
 A provider can also live in a separate model using a private cross-model offer.
 Limit offer access to the intended consumer; do not expose inventory credentials.
-Integrate only applications belonging to the same rack. MAAS determines that
-rack from every BIRD unit's native hardware UUID and `rack-<id>` tag; there is no
-`rack` option on either consumer charm. Mixed-rack applications are blocked.
-The DPU observer receives the derived delivery scope through its BIRD relation.
+Applications may span racks. MAAS determines each BIRD unit's own rack from its
+native hardware UUID and `rack-<id>` tag; neither consumer charm has a `rack`
+option. DPU observers publish rack-neutral native card observations. BIRD joins
+only its own matching cards to its own approved TOR policy.
 
 Next, integrate your actual workload's `route-advertisements` provider with
 `bird-rack-a:advertisements`. That provider must publish the host identity,
@@ -324,8 +324,10 @@ guards while workloads can still use the sources. See
 [operations](operations.md#updating-and-rollback) for ownership and rollback rules.
 
 After a successful pilot, add host-specific allocations and contexts, then add a
-BIRD unit on each participating host. For another rack, create another BIRD
-application and its attachment-provider application, and integrate inventory
-with that rack. The [two-rack example](../examples/rack-scoped/bundle.yaml) shows
-that topology. Validate controller/event capacity and failure behavior at your
-actual scale before calling it production-ready.
+BIRD unit on each participating host. Add hosts in another rack to the same
+application when they share its policy and lifecycle. DPU observers can likewise
+share an application across racks. The [two-rack example](../examples/rack-scoped/bundle.yaml)
+shows one BIRD application, one observer application and one inventory provider.
+Use separate applications when policy, upgrades or secret trust boundaries differ.
+Validate controller/event capacity and failure behavior at your actual scale
+before calling it production-ready.

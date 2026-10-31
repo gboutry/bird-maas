@@ -1,16 +1,11 @@
-"""Rack-scoped delivery, with host-local selection before payload validation.
-
-Relations are an operator-established trust boundary. A rack request selects the
-public inventory slice; it never grants access to MAAS credentials. A relation's
-rack is immutable after first publication. Reintegrate to change its scope.
-"""
+"""Host-local workload and attachment selection before payload validation."""
 
 import json
 import re
 from collections.abc import MutableMapping
 
 from maas_bird.interfaces import MAX_FIELD_BYTES, decode
-from maas_bird.models import Advertisements, Attachments, Identity, Inventory, RackRequest
+from maas_bird.models import Advertisements, Attachments, Identity
 
 
 class ScopeError(ValueError):
@@ -21,16 +16,6 @@ def rack_id(value: object) -> str:
     if not isinstance(value, str) or not re.fullmatch(r"[a-zA-Z0-9_-]{1,48}", value):
         raise ScopeError("Rack identity must be a safe physical rack ID")
     return value
-
-
-def inventory_slice(inventory: Inventory, request: RackRequest) -> Inventory:
-    rack = rack_id(request.rack)
-    return Inventory(
-        rack=rack,
-        hosts=None
-        if inventory.hosts is None
-        else tuple(h for h in inventory.hosts if h.rack == rack),
-    )
 
 
 def advertisements_for_host(bag: MutableMapping[str, str], rack: str, machine_id: str):
@@ -59,9 +44,7 @@ def advertisements_for_host(bag: MutableMapping[str, str], rack: str, machine_id
     return document
 
 
-def attachments_for_host(bag: MutableMapping[str, str], rack: str, identities: set[Identity]):
-    if _header(bag, "rack") != rack:
-        return None
+def attachments_for_host(bag: MutableMapping[str, str], identities: set[Identity]):
     # Only inspect identities until this host has a matching card. An invalid
     # payload for an unrelated card must not poison every unit in the rack.
     try:
