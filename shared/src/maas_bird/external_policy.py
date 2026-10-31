@@ -34,7 +34,13 @@ def expected_policy(plan):
             {
                 "table": context.table,
                 "destinations": list(map(str, domain.imports)),
-                "interfaces": [s.interface for s in domain.sessions],
+                # Keep this installed pre-start module stdlib-only. The same
+                # explicit scope as rendering must bound accepted kernel routes.
+                "interfaces": [
+                    s.interface
+                    for s in domain.sessions
+                    if context.attachment_ids is None or s.id in context.attachment_ids
+                ],
             }
             for domain in plan.domains
             for context in domain.contexts

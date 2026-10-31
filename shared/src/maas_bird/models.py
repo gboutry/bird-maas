@@ -131,10 +131,16 @@ class ContextIntent(Record):
 
     id: str
     machine_id: str | None = None
-    numa_node: Annotated[int, Field(strict=True, ge=0)]
+    numa_node: Annotated[int, Field(strict=True, ge=0)] | None
+    attachment_ids: tuple[str, ...] | None = None
     table: Annotated[int, Field(strict=True, ge=1000, le=4294967295)]
     rule_priority: Annotated[int, Field(strict=True, ge=1000, le=32000)]
     sources: tuple[IPv4Network, ...]
+
+    @field_validator("attachment_ids")
+    @classmethod
+    def canonical_attachments(cls, value):
+        return tuple(sorted(value)) if value is not None else None
 
 
 class RoutingContext(ContextIntent):
@@ -195,3 +201,17 @@ class MultiDomainPlan(Record):
 
 def routing_plans(plan: Plan | MultiDomainPlan) -> tuple[Plan, ...]:
     return plan.domains if isinstance(plan, MultiDomainPlan) else (plan,)
+
+
+def sessions_for_context(plan: Plan, context: RoutingContext) -> tuple[Session, ...]:
+    """Select dedicated paths, or retain the existing shared-domain behavior.
+
+    None is the backwards-compatible shared pair. Explicit IDs
+    are operator authority: only those sessions may import into or export from
+    this context, even when another context uses the same TORs.
+    """
+    return tuple(
+        session
+        for session in plan.sessions
+        if context.attachment_ids is None or session.id in context.attachment_ids
+    )

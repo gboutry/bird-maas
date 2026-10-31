@@ -96,7 +96,9 @@ def _domain(host, peers, domain, protected, attachments, advertisements, links, 
     if any(p.overlaps(q) for i, p in enumerate(imports) for q in imports[i + 1 :]):
         raise InvalidIntent("Domain import prefixes overlap")
     sessions = tuple(
-        sorted(_resolve_sessions(attachments, links, peers, domain.id), key=lambda s: s.id)
+        sorted(
+            _resolve_domain_sessions(attachments, links, peers, domain, host), key=lambda s: s.id
+        )
     )
     contexts = _contexts(domain, host, sessions, advertisements)
     tx, rx, mult, hold, keepalive = _timers(domain, config)
@@ -120,8 +122,6 @@ def _contexts(domain, host, sessions, documents):
     selected = [c for c in domain.contexts if c.machine_id in (None, host.machine_id)]
     if not selected:
         raise NotReady("Waiting for this host's routing contexts")
-    if any(s.numa_node is None for s in sessions):
-        raise NotReady("NUMA locality is unknown for a host attachment")
     ids = [c.id for c in selected]
     if len(set(ids)) != len(ids) or any(
         not re.fullmatch(r"[a-zA-Z0-9_-]{1,48}", name) for name in ids
@@ -129,8 +129,16 @@ def _contexts(domain, host, sessions, documents):
         raise InvalidIntent("Context IDs must be unique safe identifiers")
     if any(not c.sources or any(p.prefixlen != 32 for p in c.sources) for c in selected):
         raise InvalidIntent("Every context requires source /32 bindings")
-    if any(not any(s.numa_node == c.numa_node for s in sessions) for c in selected):
-        raise InvalidIntent("Every context requires a verified NUMA-local attachment")
+    for context in selected:
+        paths = [
+            s for s in sessions if context.attachment_ids is None or s.id in context.attachment_ids
+        ]
+        if context.numa_node is None:
+            continue  # Explicitly neutral: no locality preference or NUMA requirement.
+        if any(s.numa_node is None for s in paths):
+            raise NotReady("NUMA locality is unknown for a host attachment")
+        if not any(s.numa_node == context.numa_node for s in paths):
+            raise InvalidIntent("Every context requires a verified NUMA-local attachment")
     by_id = {c.id: c for c in selected}
     exports = {c.id: set() for c in selected}
     for document in documents:
@@ -216,6 +224,43 @@ def _resolve_host(uid: str, inventory: Inventory) -> tuple[Host, dict[str, Peer]
     if any(not p.asn or not p.id for p in peers.values()):
         raise NotReady("Rack peer configuration is incomplete")
     return host, peers
+
+
+def _resolve_domain_sessions(documents, links, peers, domain, host):
+    """Resolve each context's approved pair without conflating same-TOR paths."""
+    selected = [c for c in domain.contexts if c.machine_id == host.machine_id]
+    sessions = {}
+    for context in selected:
+        ids = context.attachment_ids
+        if ids is not None and (len(set(ids)) != len(ids) or any(not name for name in ids)):
+            raise InvalidIntent("Context attachment IDs must be unique nonempty identifiers")
+        scoped = _documents_for_paths(documents, ids)
+        paths = _resolve_sessions(scoped, links, peers, domain.id)
+        if ids is not None and {s.id for s in paths} != set(ids):
+            raise NotReady("Waiting for all declared context attachments")
+        for session in paths:
+            if session.id in sessions and sessions[session.id] != session:
+                raise InvalidIntent("An attachment ID identifies conflicting paths")
+            sessions[session.id] = session
+    return list(sessions.values())
+
+
+def _documents_for_paths(documents, ids):
+    """Retain unknown snapshots, filtering only explicit context path grants."""
+    if ids is None:
+        return documents
+    scoped = []
+    for document in documents:
+        cards = []
+        for card in document.cards or ():
+            attachments = (
+                None
+                if card.attachments is None
+                else tuple(a for a in card.attachments if a.id in ids)
+            )
+            cards.append(card.model_copy(update={"attachments": attachments}))
+        scoped.append(document.model_copy(update={"cards": tuple(cards)}))
+    return scoped
 
 
 def _resolve_sessions(

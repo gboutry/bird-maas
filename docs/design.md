@@ -88,8 +88,11 @@ tables. If both fabric paths fail, the guard prevents falling through to `main`.
 Ordinary management sources retain their existing policy. The kernel local table
 remains first, so local delivery is intentionally not intercepted by this design.
 
-Each context prefers the attachment on its NUMA cell and retains the other TOR
-as backup. BIRD exports a large community `(host-ASN, context-table, preference)`
+By default, contexts share the domain's sessions. A context can instead name
+`attachment_ids` to select a dedicated pair, allowing separate VF pairs for its
+two NUMA VIPs. See [dedicated paths](dedicated-paths.md). A numeric `numa_node`
+requires a local attachment and prefers it over the remote TOR; an explicit
+`numa_node: null` selects no NUMA preference. BIRD exports a large community `(host-ASN, context-table, preference)`
 with preference 1 for the local attachment and 0 for backup. The TOR owner must
 implement corresponding ingress policy. These communities are intent, not proof
 of NUMA locality at a DPU or hardware forwarding after failover.

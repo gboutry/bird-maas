@@ -29,10 +29,11 @@ an implementation of the [attachment relation](design.md#relations). Do not
 pretend a DPU observer is a generic NIC provider or mark an attachment ready
 without evidence.
 
-Current host discovery also requires conventional PCI function coordinates,
-a known NUMA node, and exactly one usable non-tentative IPv6 link-local address
-on each selected interface. Unknown NUMA placement (including a reported `-1`)
-blocks activation. The supplied observer matches MAC-type LLDP chassis IDs.
+Current host discovery also requires conventional PCI function coordinates and
+exactly one usable non-tentative IPv6 link-local address on each selected
+interface. Numeric NUMA contexts require known placement; an explicit neutral
+context can omit the locality preference. See [dedicated paths](dedicated-paths.md).
+Unknown placement (including a reported `-1`) blocks a strict NUMA context. The supplied observer matches MAC-type LLDP chassis IDs.
 These constraints need checking on a different NIC, DPU or switch implementation.
 
 If either publisher or persistent host policy is missing, you can deploy the

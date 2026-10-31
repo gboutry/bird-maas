@@ -4,6 +4,7 @@ import dataclasses
 import json
 from ipaddress import IPv6Address
 from pathlib import Path
+from typing import Any
 
 import yaml
 from maas_bird.discovery import LocalLink
@@ -254,4 +255,91 @@ def rack_inputs(inputs=None):
         "export-allowlist",
     ):
         data["config"].pop(key, None)
+    return data
+
+
+def ten_vf_inputs():
+    """Five VFs on each card: four dedicated Ceph paths and one neutral path.
+
+    Each Ceph context gets its own two-interface failure domain. General traffic
+    has one pair and no NUMA preference. These are independent allocated inputs,
+    not observations of any production host.
+    """
+    data = rack_inputs()
+    domains = json.loads(data["config"]["routing-domains"])
+    domains.append(
+        dict(
+            id="general",
+            import_prefixes=["192.168.51.0/24"],
+            export_allowlist=["192.168.50.0/24"],
+            contexts=[
+                dict(
+                    id="any-numa",
+                    machine_id="abc123",
+                    numa_node=None,
+                    table=3300,
+                    rule_priority=12000,
+                    sources=["192.168.50.11/32"],
+                )
+            ],
+        )
+    )
+    cards: list[dict[str, Any]] = [
+        dict(identity={"scheme": "devlink-serial", "value": f"card{n + 1}"}, attachments=[])
+        for n in range(2)
+    ]
+    data["local_links"] = []
+    ads = []
+    vf = 55
+    for domain in domains:
+        records = []
+        for context in domain["contexts"]:
+            stem = f"{domain['id']}-{context['id']}"
+            context["attachment_ids"] = [f"{stem}-tor{n + 1}" for n in range(2)]
+            for n in range(2):
+                name = f"vf{vf}c{n}"
+                vlan = 3500 + vf - 55
+                attachment = dict(
+                    id=f"{stem}-tor{n + 1}",
+                    domain=domain["id"],
+                    function={"controller": 0, "pf": 0, "vf": vf},
+                    vlan=vlan,
+                    chassis_id=f"aa:aa:aa:aa:aa:0{n + 1}",
+                    peer_link_local="fe80::1",
+                    ready=True,
+                )
+                cards[n]["attachments"].append(attachment)
+                data["local_links"].append(
+                    LocalLink(
+                        name,
+                        Identity(scheme="devlink-serial", value=f"card{n + 1}"),
+                        0,
+                        0,
+                        vf,
+                        vlan,
+                        IPv6Address(f"fe80::{n + 11}"),
+                        n,
+                    )
+                )
+            records.extend(
+                dict(
+                    machine_id="abc123",
+                    domain=domain["id"],
+                    context=context["id"],
+                    prefix=source,
+                    ready=True,
+                )
+                for source in context["sources"]
+            )
+            vf += 1
+        ads.append(
+            Advertisements.model_validate(
+                dict(rack="a", machine_id="abc123", domain=domain["id"], advertisements=records)
+            )
+        )
+    data["config"]["routing-domains"] = json.dumps(domains)
+    data["attachments"] = [
+        Attachments.model_validate(dict(rack="a", cards=[card])) for card in cards
+    ]
+    data["advertisements"] = ads
     return data

@@ -92,6 +92,8 @@ hardware forwarding counters during normal operation and failover.
 
 - [Getting started](docs/getting-started.md): prerequisites, example configuration
   and the path to a first pilot.
+- [Dedicated VF paths](docs/dedicated-paths.md): separate Ceph VIP pairs and an
+  explicitly NUMA-neutral context.
 - [Operations and migration](docs/operations.md): health, updates, withdrawal and
   decommissioning.
 - [Design and relation contracts](docs/design.md): ownership, schemas, source

@@ -8,7 +8,13 @@ imports or adjacencies from the last accepted plan before topology resolution.
 import json
 from ipaddress import IPv4Network
 
-from maas_bird.models import Advertisements, Inventory, MultiDomainPlan, RoutingDomain
+from maas_bird.models import (
+    Advertisements,
+    Inventory,
+    MultiDomainPlan,
+    RoutingDomain,
+    sessions_for_context,
+)
 from maas_bird.resolver import AuthorizationWithdrawn
 
 
@@ -51,11 +57,12 @@ def restrict(
             source
             for context in old.contexts
             if context.id in declared
-            and (context.numa_node, context.table, context.rule_priority)
+            and (context.numa_node, context.table, context.rule_priority, context.attachment_ids)
             == (
                 declared[context.id].numa_node,
                 declared[context.id].table,
                 declared[context.id].rule_priority,
+                declared[context.id].attachment_ids,
             )
             for source in context.sources
             if source in declared[context.id].sources
@@ -87,7 +94,12 @@ def restrict(
             and host.router_id == previous.host.router_id
         )
         contexts = tuple(
-            c.model_copy(update={"exports": tuple(p for p in c.exports if p in prefixes)})
+            c.model_copy(
+                update={
+                    "exports": tuple(p for p in c.exports if p in prefixes),
+                    "attachment_ids": _restricted_paths(old, c, declared.get(c.id)),
+                }
+            )
             for c in old.contexts
         )
         restricted.append(
@@ -132,3 +144,25 @@ def _attachment_bindings(documents):
             else:
                 bindings[card.identity] = observed
     return bindings
+
+
+def _restricted_paths(domain, old, declared):
+    """Commit removed context paths before any fallible new topology activation.
+
+    Explicit empty IDs mean no paths, unlike None (the shared legacy pair).
+    This lets a restrictive floor remove import pipes without authorizing a new
+    attachment or depending on the availability of replacement paths.
+    """
+    if declared is None:
+        # Preserve the established shared-layout migration behavior. Dedicated
+        # path grants can be narrowed without changing static table ownership.
+        return () if old.attachment_ids is not None else None
+    if old.attachment_ids == declared.attachment_ids:
+        return old.attachment_ids
+    previous = {s.id for s in sessions_for_context(domain, old)}
+    allowed = (
+        {s.id for s in domain.sessions}
+        if declared.attachment_ids is None
+        else set(declared.attachment_ids)
+    )
+    return tuple(sorted(previous & allowed))

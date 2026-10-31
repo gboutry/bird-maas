@@ -21,9 +21,31 @@
           "title": "Machine Id"
         },
         "numa_node": {
-          "minimum": 0,
-          "title": "Numa Node",
-          "type": "integer"
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Numa Node"
+        },
+        "attachment_ids": {
+          "anyOf": [
+            {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Attachment Ids"
         },
         "table": {
           "maximum": 4294967295,

@@ -3,7 +3,7 @@
 import hashlib
 import re
 
-from maas_bird.models import MultiDomainPlan
+from maas_bird.models import MultiDomainPlan, sessions_for_context
 
 
 def quoted(value: str) -> str:
@@ -100,9 +100,12 @@ protocol bgp {bgp} {{
   import limit {max(1, len(domain.imports))} action disable;
   export filter {{ if proto ~ "{namespace}origin_*" then {{
 """
-    for context in domain.contexts:
+    contexts = [c for c in domain.contexts if session in sessions_for_context(domain, c)]
+    for context in contexts:
         sources = ", ".join(map(str, context.sources))
-        preferred = 1 if session.numa_node == context.numa_node else 0
+        preferred = (
+            1 if context.numa_node is not None and session.numa_node == context.numa_node else 0
+        )
         # Communities express preference to the fabric owner. They do not prove
         # TOR policy, inbound locality, or hardware offload on their own.
         text += f"""   if net ~ [ {sources} ] then {{
@@ -116,9 +119,13 @@ protocol bgp {bgp} {{
 """
     # Retain each peer's routes separately before choosing per-context preference;
     # selecting a single global best path would discard the remote fallback.
-    for context in domain.contexts:
+    for context in contexts:
         context_tag = _tag(context.id)
-        preference = 200 if session.numa_node == context.numa_node else 100
+        preference = (
+            200
+            if context.numa_node is not None and session.numa_node == context.numa_node
+            else 100
+        )
         text += f"""protocol pipe {namespace}path_{tag}_context_{context_tag} {{
  table {namespace}path_{tag}; peer table {namespace}context_{context_tag}; import none;
  export filter {{ if proto = "{bgp}" && source = RTS_BGP then {{

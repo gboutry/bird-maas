@@ -15,7 +15,7 @@ from maas_bird.render import render_rack
 from maas_bird.resolver import resolve_rack as rack_compiler
 from maas_bird.runtime import accepted
 
-from tests.factories import rack_inputs
+from tests.factories import rack_inputs, ten_vf_inputs
 from tests.prototype import runtime
 from tests.prototype.policy import PolicyError, PolicyRouting
 from tests.prototype.render import quoted, render
@@ -1081,3 +1081,169 @@ def test_rack_withdrawal_under_silent_failure_preserves_surviving_sessions(
     lab.send("10.60.11.12", "203.0.113.9", "mb-dst", "recv1")
     lab.send("172.22.0.11", "198.51.100.9", "mb-rdst", "recv1")
     lab.send("172.20.0.1", "172.21.0.2", "mb-mgmt", "managed")
+
+
+@pytest.mark.parametrize("interval", [50, 300])
+def test_ten_dedicated_vf_paths_and_neutral_general_failover(lab, interval):
+    """Real packets must not borrow another Ceph context's still-healthy VF pair.
+
+    The synthetic fabric deliberately offers every domain on every BGP session.
+    Test both timers, a silent single-path failure, a complete dedicated-pair
+    failure, unaffected other contexts, and general-path recovery without a
+    NUMA preference. This is Linux/BIRD acceptance, not a physical offload test.
+    """
+    inputs = ten_vf_inputs()
+    policies = json.loads(inputs["config"]["routing-domains"])
+    for policy in policies:
+        policy.update(bfd_min_tx_ms=interval, bfd_min_rx_ms=interval)
+    inputs["config"]["routing-domains"] = json.dumps(policies)
+    plan = rack_compiler(**inputs)
+    destinations, expected = prepare_ten_paths(lab, plan, inputs["local_links"])
+    start_ten_paths(lab, plan, interval)
+    wait(
+        lambda: all((lab.runtime / f"{label}.ctl").exists() for label in ("host", "tor0", "tor1")),
+        "Native BIRD control sockets did not become ready",
+    )
+    wait(
+        lambda: lab.cli("host", "show", "protocols").count("Established") == 10,
+        "Ten dedicated BGP sessions did not establish",
+    )
+    cases = [
+        ("10.60.11.11", "storage-public", "vf55c0"),
+        ("10.60.11.12", "storage-public", "vf56c1"),
+        ("172.22.0.11", "storage-replica", "vf57c0"),
+        ("172.22.0.12", "storage-replica", "vf58c1"),
+    ]
+    for source, domain, interface in cases:
+        wait(
+            lambda source=source, domain=domain, interface=interface: (
+                domain_dev(lab, source, destinations[domain]) == interface
+            ),
+            "Dedicated local route not selected",
+        )
+        lab.send(source, destinations[domain], "mb-dst", "recv" + interface[-1])
+    external_policy.validate(expected, lab.run)
+
+    # Silent loss, not carrier-down: BFD must drive only this context's backup.
+    lab.ns("mb-host", ["tc", "qdisc", "add", "dev", "vf55c0", "root", "netem", "loss", "100%"])
+    wait(
+        lambda: domain_dev(lab, "10.60.11.11", destinations["storage-public"]) == "vf55c1",
+        "Dedicated backup not selected after silent loss",
+    )
+    lab.send("10.60.11.11", destinations["storage-public"], "mb-dst", "recv1")
+    lab.ip("mb-host", "link", "set", "vf55c1", "down")
+    wait(
+        lambda: domain_dev(lab, "10.60.11.11", destinations["storage-public"]) is None,
+        "Context borrowed another VIP's VF pair",
+    )
+    blocked_datagram(lab, "10.60.11.11", destinations["storage-public"])
+    for source, domain, interface in cases[1:]:
+        assert domain_dev(lab, source, destinations[domain]) == interface
+        lab.send(source, destinations[domain], "mb-dst", "recv" + interface[-1])
+
+    general = destinations["general"]
+    wait(
+        lambda: domain_dev(lab, "192.168.50.11", general) in {"vf59c0", "vf59c1"},
+        "Neutral route missing",
+    )
+    primary = domain_dev(lab, "192.168.50.11", general)
+    backup = "vf59c1" if primary == "vf59c0" else "vf59c0"
+    lab.ip("mb-host", "link", "set", primary, "down")
+    wait(
+        lambda: domain_dev(lab, "192.168.50.11", general) == backup, "Neutral backup not selected"
+    )
+    lab.send("192.168.50.11", general, "mb-dst", "recv" + backup[-1])
+    # Carrier recovery must not require restoring an assumed NUMA preference.
+    lab.ip("mb-host", "link", "set", primary, "up")
+    wait(
+        lambda: domain_dev(lab, "192.168.50.11", general) in {primary, backup},
+        "Neutral recovery lost routing",
+    )
+    lab.send("172.20.0.1", "172.21.0.2", "mb-mgmt", "managed")
+    assert "must-not-leak" not in (lab.directory / "mb-mgmt.jsonl").read_text()
+
+
+def prepare_ten_paths(lab, plan, links):
+    """Provision only the disposable topology and static source-policy owner state."""
+    destinations = {
+        "storage-public": "203.0.113.9",
+        "storage-replica": "198.51.100.9",
+        "general": "192.168.51.9",
+    }
+    for address in ["172.22.0.11", "172.22.0.12", "192.168.50.11"]:
+        lab.ip("mb-host", "addr", "add", address + "/32", "dev", "lo")
+    for destination in ["198.51.100.9", "192.168.51.9"]:
+        lab.ip("mb-dst", "addr", "add", destination + "/32", "dev", "lo")
+        lab.ip("mb-mgmt", "addr", "add", destination + "/32", "dev", "lo")
+    for n in range(2):
+        for prefix in ["198.51.100.0/24", "192.168.51.0/24"]:
+            lab.ip(f"mb-tor{n}", "route", "add", prefix, "via", f"192.0.{n + 2}.2")
+    for link in links:
+        node = link.numa_node
+        peer = f"p{link.vf}c{node}"
+        lab.link("mb-host", link.interface, f"mb-tor{node}", peer)
+        lab.ip(
+            "mb-host", "-6", "addr", "add", f"{link.link_local}/64", "dev", link.interface, "nodad"
+        )
+        lab.ip(f"mb-tor{node}", "-6", "addr", "add", "fe80::1/64", "dev", peer, "nodad")
+    expected = external_policy.expected_policy(plan)
+    for context in expected["contexts"]:
+        lab.ip(
+            "mb-host",
+            "route",
+            "add",
+            "unreachable",
+            "default",
+            "table",
+            str(context["table"]),
+            "proto",
+            "196",
+            "metric",
+            "42760",
+        )
+    for rule in expected["rules"]:
+        lab.ip(
+            "mb-host",
+            "rule",
+            "add",
+            "from",
+            rule["src"],
+            "table",
+            str(rule["table"]),
+            "priority",
+            str(rule["priority"]),
+            "protocol",
+            "196",
+        )
+    external_policy.validate(expected, lab.run)
+    return destinations, expected
+
+
+def start_ten_paths(lab, plan, interval):
+    """Start actual host and TOR daemons with intentionally over-offered routes."""
+    lab.bird("mb-host", render_rack(plan, {s.id: "example" for s in plan.sessions}), "host")
+    for n in range(2):
+        peers = [s for s in plan.sessions if s.numa_node == n]
+        interfaces = ", ".join(f'"p{s.function.vf}c{n}"' for s in peers)
+        config = f"""router id 10.255.0.{n + 1};
+log stderr all;
+protocol device {{}}
+protocol kernel main_kernel {{ learn; ipv4 {{ import all; export all; }}; }}
+protocol bfd fabric {{ interface {interfaces} {{
+ min tx interval {interval} ms; min rx interval {interval} ms; multiplier 3;
+}}; }}
+"""
+        for session in peers:
+            config += f"""protocol bgp peer_{session.function.vf} {{
+ local fe80::1 as {session.remote_asn};
+ neighbor {session.local}%p{session.function.vf}c{n} as {plan.host.local_asn};
+ interface "p{session.function.vf}c{n}"; direct; strict bind yes; bfd yes;
+ password "example"; hold time 9; keepalive time 3; connect retry time 1;
+ ipv4 {{ extended next hop on; import all;
+ export filter {{
+  if net ~ [203.0.113.0/24, 198.51.100.0/24, 192.168.51.0/24] then accept; reject;
+ }};
+ }};
+}}
+"""
+        lab.bird(f"mb-tor{n}", config, f"tor{n}")

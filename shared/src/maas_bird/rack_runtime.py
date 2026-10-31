@@ -19,7 +19,7 @@ from charmlibs import apt
 
 from maas_bird import external_policy, policy_objects
 from maas_bird import runtime as daemon_runtime
-from maas_bird.models import MultiDomainPlan
+from maas_bird.models import MultiDomainPlan, sessions_for_context
 from maas_bird.render import protocol_name, quoted, render_rack
 from maas_bird.runtime import (
     OwnedBird,
@@ -110,7 +110,11 @@ class RackService(OwnedBird):
                         ["ip", "-4", "-j", "-N", "route", "show", "table", str(context.table)]
                     ).stdout
                 )
-                local = {s.interface for s in domain.sessions if s.numa_node == context.numa_node}
+                local = {
+                    s.interface
+                    for s in sessions_for_context(domain, context)
+                    if context.numa_node is None or s.numa_node == context.numa_node
+                }
                 for prefix in domain.imports:
                     selected = [r for r in routes if r.get("dst") == str(prefix) and r.get("dev")]
                     missing += not selected
