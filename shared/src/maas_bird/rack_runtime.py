@@ -428,12 +428,25 @@ class RackService(OwnedBird):
             if restrictive:
                 self.stop()  # Durable floor survives; no stale undo or restart.
             else:
-                self._materialize(previous)
-                try:
-                    self._control("configure", quoted(str(self.config)))
-                except Exception:
-                    self.stop()
+                self._restore(previous)
             raise
+
+    def _restore(self, previous):
+        """Restore accepted authority only while its native prerequisites hold."""
+        try:
+            self._materialize(previous)
+            old = MultiDomainPlan.model_validate(previous["plan"])
+            if old.host.system_uuid != external_policy.host_uuid():
+                raise RuntimeErrorBase("Accepted routing belongs to another physical host")
+            # A configure reload skips systemd ExecStartPre. Policy can disappear
+            # while acceptance polls, or while the reload itself is in flight.
+            external_policy.validate(previous["policy"], run)
+            self._control("configure", quoted(str(self.config)))
+            external_policy.validate(previous["policy"], run)
+            if not self._live_matches(previous):
+                raise RuntimeErrorBase("Accepted BIRD generation was not restored")
+        except Exception:
+            self.stop()
 
     @staticmethod
     def _requirements(old, proposed):
