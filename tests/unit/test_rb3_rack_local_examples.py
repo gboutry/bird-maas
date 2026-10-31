@@ -63,15 +63,12 @@ def reviewed_host_inputs(name):
                     numa_node=side,
                 )
             )
-        documents.append(
-            Attachments(rack=rack, cards=(Card(identity=identity, attachments=attachments),))
-        )
+        documents.append(Attachments(cards=(Card(identity=identity, attachments=attachments),)))
     uid = f"test-observation-{name}"
     return dict(
         uid=uid,
         inventory=Inventory(
             rack=rack,
-            member_uuids=(uid,),
             scope_state="ready",
             hosts=(
                 Host(
