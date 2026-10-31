@@ -5,10 +5,18 @@ import json
 from ipaddress import IPv6Address
 from pathlib import Path
 from typing import Any
+from uuid import NAMESPACE_DNS, uuid5
 
 import yaml
 from maas_bird.discovery import LocalLink
-from maas_bird.models import Advertisements, Attachments, Identity, Inventory
+from maas_bird.models import (
+    Advertisements,
+    Attachments,
+    Identity,
+    Inventory,
+    OvsPort,
+    UplinkBinding,
+)
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -343,3 +351,126 @@ def ten_vf_inputs():
     ]
     data["advertisements"] = ads
     return data
+
+
+def ovs_port_binding(name="svi3500", vlan=3500, ifindex=31, serial="card-a"):
+    return OvsPort(
+        bridge="br-data",
+        port=name,
+        bridge_uuid=uuid5(NAMESPACE_DNS, "bridge"),
+        port_uuid=uuid5(NAMESPACE_DNS, "port:" + name),
+        interface_uuid=uuid5(NAMESPACE_DNS, "interface:" + name),
+        vlan=vlan,
+        ifindex=ifindex,
+        uplink=UplinkBinding(
+            physical="p0",
+            bond=None,
+            members=("p0",),
+            serial=serial,
+            port_uuid=uuid5(NAMESPACE_DNS, "uplink-port:" + serial),
+            interface_uuid=uuid5(NAMESPACE_DNS, "uplink-interface:" + serial),
+        ),
+    )
+
+
+def ovs_inputs():
+    inputs = rack_inputs()
+    bindings = {
+        link.interface: ovs_port_binding(
+            link.interface, link.vlan, 31 + index, link.identity.value
+        )
+        for index, link in enumerate(inputs["local_links"])
+    }
+    inputs["local_links"] = [
+        dataclasses.replace(
+            link,
+            controller=None,
+            pf=None,
+            vf=None,
+            numa_node=None,
+            ovs_port=bindings[link.interface],
+        )
+        for link in inputs["local_links"]
+    ]
+    for index, document in enumerate(inputs["attachments"]):
+        raw = document.model_dump(mode="json")
+        for card in raw["cards"]:
+            for attachment in card["attachments"]:
+                link = next(
+                    link
+                    for link in inputs["local_links"]
+                    if link.identity.value == card["identity"]["value"]
+                    and link.vlan == attachment["vlan"]
+                )
+                attachment.update(
+                    function=None,
+                    observed_function=None,
+                    ovs_port=link.ovs_port.model_dump(mode="json"),
+                )
+        inputs["attachments"][index] = Attachments.model_validate(raw)
+    domains = json.loads(inputs["config"]["routing-domains"])
+    for domain in domains:
+        for context in domain["contexts"]:
+            context["numa_node"] = None
+    inputs["config"]["routing-domains"] = json.dumps(domains)
+    return inputs
+
+
+def ovs_snapshot_text(binding):
+    """Use real OVSDB JSON atoms, including singleton and empty sets."""
+    b = binding.model_dump(mode="json")
+    uplink = b["uplink"]
+    bridge_ports = [["uuid", b["port_uuid"]], ["uuid", uplink["port_uuid"]]]
+    documents: list[dict[str, Any]] = [
+        {
+            "headings": ["_uuid", "name", "ports"],
+            "data": [[["uuid", b["bridge_uuid"]], b["bridge"], ["set", bridge_ports]]],
+        },
+        {
+            "headings": ["_uuid", "name", "interfaces", "tag", "trunks", "vlan_mode"],
+            "data": [
+                [
+                    ["uuid", b["port_uuid"]],
+                    b["port"],
+                    ["uuid", b["interface_uuid"]],
+                    b["vlan"],
+                    ["set", []],
+                    ["set", []],
+                ]
+            ],
+        },
+        {
+            "headings": ["_uuid", "name", "type", "ifindex", "ofport", "error"],
+            "data": [
+                [
+                    ["uuid", b["interface_uuid"]],
+                    b["port"],
+                    "internal",
+                    b["ifindex"],
+                    7,
+                    ["set", []],
+                ]
+            ],
+        },
+    ]
+    documents[1]["data"].append(
+        [
+            ["uuid", uplink["port_uuid"]],
+            uplink["bond"] or uplink["physical"],
+            ["uuid", uplink["interface_uuid"]],
+            ["set", []],
+            ["set", []],
+            ["set", []],
+        ]
+    )
+    documents[2]["data"].append(
+        [
+            ["uuid", uplink["interface_uuid"]],
+            uplink["bond"] or uplink["physical"],
+            "system",
+            17,
+            8,
+            ["set", []],
+        ]
+    )
+    return "\n".join(json.dumps(document) for document in documents)

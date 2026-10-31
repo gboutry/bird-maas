@@ -50,12 +50,20 @@ synthesize an empty snapshot. During an outage, only restrictions of previously
 published authority may be delivered.
 
 An attachment identifies a card using `{scheme,value}` and has `id`, `domain`,
-`function`, `observed_function`, `vlan`, `chassis_id`, `peer_link_local`, `ready`.
+`function`, `observed_function`, `ovs_port`, `vlan`, `chassis_id`,
+`peer_link_local`, `ready`.
 `function` is the canonical **host** controller/PF/VF tuple. `observed_function`
 is the native DPU tuple. They may differ; provisioning must declare the mapping.
 The host matches card identity plus exact function/VLAN, and verifies local NUMA
 and scoped link-local adjacency. A retained attachment ID does not authorize a
 changed function, VLAN, peer, or TOR chassis.
+
+For a BIRD unit co-located with OVS, an attachment may instead identify a local
+internal port through `ovs_port`, including its native row UUIDs and kernel
+ifindex. Physical and logical selectors are mutually exclusive. Local discovery
+is opt-in; changed OVS identities cannot inherit accepted authority by name.
+See [DPU LACP and OVS attachments](ovs-attachments.md) for configuration and
+verification boundaries.
 
 Workload records contain `machine_id`, `domain`, `prefix`, `context`, `ready`.
 They may advertise only explicitly bound /32 sources inside the operator's

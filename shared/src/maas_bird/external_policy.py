@@ -14,6 +14,7 @@ import subprocess
 from ipaddress import IPv4Interface
 from pathlib import Path
 
+from maas_bird import ovsdb
 from maas_bird.policy_objects import (
     GUARD_METRIC,
     PROTOCOL,
@@ -27,7 +28,7 @@ from maas_bird.runtime import write_atomic
 
 def expected_policy(plan):
     """One catch-all source selector per /32; no destination can fall into main."""
-    return {
+    result = {
         "tables": sorted(c.table for c in plan.contexts),
         "sources": sorted(str(source) for c in plan.contexts for source in c.sources),
         "contexts": [
@@ -57,9 +58,17 @@ def expected_policy(plan):
             for offset, source in enumerate(sorted(context.sources))
         ],
     }
+    logical = [s.ovs_port.model_dump(mode="json") for s in plan.sessions if s.ovs_port]
+    if logical:
+        result["ovs_bindings"] = logical
+    return result
 
 
-def validate(expected, execute, *, check_routes=True):
+def validate(
+    expected, execute, *, check_routes=True, check_bindings=True, sysfs_root=Path("/sys")
+):
+    if check_bindings and expected.get("ovs_bindings"):
+        _validate_ovs_bindings(expected["ovs_bindings"], execute, sysfs_root)
     rules = json.loads(execute(["ip", "-4", "-j", "-N", "rule", "show"]).stdout)
     routes = json.loads(execute(["ip", "-4", "-j", "-N", "route", "show", "table", "all"]).stdout)
     expected_keys = {rule_key(rule) for rule in expected["rules"]}
@@ -117,6 +126,39 @@ def validate(expected, execute, *, check_routes=True):
             key = rule_key(rule)
             if key is None or any(_overlaps(rule, desired) for desired in expected["rules"]):
                 raise PolicyError("An earlier policy selector can bypass managed source guards")
+
+
+def _validate_ovs_bindings(bindings, execute, sysfs_root=Path("/sys")):
+    """Recreated OVS objects cannot inherit accepted boot authority by name."""
+    state = ovsdb.snapshot(lambda argv: execute(argv).stdout)
+    raw_cards = json.loads(execute(["devlink", "-j", "dev", "info"]).stdout)
+    serials = {
+        key.removeprefix("pci/"): value["serial_number"]
+        for key, value in raw_cards.get("info", {}).items()
+        if key.startswith("pci/") and value.get("serial_number")
+    }
+    for binding in bindings:
+        try:
+            uplink = binding["uplink"]
+            observed = ovsdb.binding(
+                state,
+                binding["bridge"],
+                binding["port"],
+                uplink["physical"],
+                uplink["serial"],
+                serials,
+                sysfs_root,
+                bond=uplink["bond"],
+            )
+            addresses = json.loads(
+                execute(["ip", "-j", "link", "show", "dev", binding["port"]]).stdout
+            )
+            if observed != binding or len(addresses) != 1:
+                raise ValueError("Logical attachment identity changed")
+            if addresses[0].get("ifindex") != binding["ifindex"]:
+                raise ValueError("Kernel OVS interface identity changed")
+        except (ValueError, KeyError, TypeError) as exc:
+            raise PolicyError("Accepted OVS internal attachment is no longer present") from exc
 
 
 def _overlaps(rule, desired):

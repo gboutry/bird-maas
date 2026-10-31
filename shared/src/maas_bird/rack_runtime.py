@@ -17,7 +17,7 @@ from pathlib import Path
 
 from charmlibs import apt
 
-from maas_bird import external_policy, policy_objects
+from maas_bird import external_policy, ovsdb, policy_objects
 from maas_bird import runtime as daemon_runtime
 from maas_bird.models import MultiDomainPlan, sessions_for_context
 from maas_bird.render import protocol_name, quoted, render_rack
@@ -132,7 +132,7 @@ class RackService(OwnedBird):
             ],
         }
 
-    def verify_current(self):
+    def verify_current(self, *, check_bindings=True):
         """Check accepted host prerequisites even when a new proposal is invalid."""
         current = self.state()
         if current is not None:
@@ -144,6 +144,7 @@ class RackService(OwnedBird):
                     external_policy.expected_policy(current),
                     run,
                     check_routes=self._bundle()["phase"] == "accepted",
+                    check_bindings=check_bindings,
                 )
             except Exception:
                 self.stop()
@@ -151,7 +152,7 @@ class RackService(OwnedBird):
 
     def _prepare_rack(self, plan):
         current = self.state()
-        self.verify_current()
+        self.verify_current(check_bindings=False)
         # A rejected proposal is not evidence of drift in the active generation.
         try:
             external_policy.validate(
@@ -217,6 +218,7 @@ class RackService(OwnedBird):
             package / "policy_objects.py": Path(policy_objects.__file__).read_text(),
             package / "runtime.py": Path(daemon_runtime.__file__).read_text(),
             package / "external_policy.py": Path(external_policy.__file__).read_text(),
+            package / "ovsdb.py": Path(ovsdb.__file__).read_text(),
             self.directory / "check_policy.py": (
                 "from maas_bird.external_policy import main\nmain()\n"
             ),
@@ -242,10 +244,23 @@ class RackService(OwnedBird):
         if plan.host.system_uuid != external_policy.host_uuid():
             raise RuntimeErrorBase("Proposed routing belongs to another physical host")
         self._prepare_rack(plan)
+        if not restrictive:
+            # Grants retain full validation of the accepted generation. A
+            # restriction instead validates only its own reduced binding set.
+            self.verify_current()
         if self._bundle() is None:
             self._bootstrap(plan, passwords)
         bundle = self._bundle()
         assert bundle is not None
+        logical = render_rack(plan, passwords)
+        if restrictive and not self._active():
+            # A changed logical attachment may make the previous generation
+            # impossible to restart. Validate and persist the smaller authority
+            # before cold-starting, rather than materializing that stale bundle.
+            self._check_restriction(MultiDomainPlan.model_validate(bundle["plan"]), plan, True)
+            self._write_config(self.config, logical)
+            run(["bird", "-p", "-c", str(self.config)])
+            bundle = self._commit(plan, logical, uuid.uuid4().hex, "authorization-floor")
         if not self._active():
             self._materialize(bundle)
             self._start()
@@ -258,7 +273,6 @@ class RackService(OwnedBird):
             self._materialize(bundle)
             self._start()
             self._wait_live(bundle)
-        logical = render_rack(plan, passwords)
         if (
             bundle["intent_sha256"] == hashlib.sha256(logical.encode()).hexdigest()
             and bundle["phase"] == "accepted"
@@ -512,6 +526,7 @@ class RackService(OwnedBird):
                     "__init__.py",
                     "policy_objects.py",
                     "external_policy.py",
+                    "ovsdb.py",
                     "runtime.py",
                 ):
                     (path / name).unlink(missing_ok=True)
@@ -528,6 +543,7 @@ def _unit():
 Description=Rack-scoped BIRD routing
 After=network-online.target
 Wants=network-online.target
+StartLimitIntervalSec=0
 [Service]
 Type=simple
 User=bird
@@ -538,6 +554,7 @@ RuntimeDirectory=maas-bird
 ExecStartPre=+/usr/bin/python3 -B /etc/maas-bird/check_policy.py /etc/maas-bird
 ExecStart=/usr/sbin/bird -f -c /run/maas-bird-config/bird.conf -s /run/maas-bird/bird.ctl
 Restart=on-failure
+RestartSec=5
 NoNewPrivileges=true
 ProtectSystem=strict
 ProtectHome=true

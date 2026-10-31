@@ -14,7 +14,7 @@ import pytest
 from maas_bird.render import render_rack
 from maas_bird.resolver import resolve_rack
 
-from tests.factories import rack_inputs, ten_vf_inputs
+from tests.factories import ovs_inputs, rack_inputs, ten_vf_inputs
 from tests.prototype import runtime
 from tests.prototype.render import quoted, render
 from tests.prototype.resolver import resolve
@@ -336,3 +336,15 @@ def test_ten_dedicated_vfs_and_neutral_context_parse_with_native_bird(tmp_path, 
     config = tmp_path / "ten-vfs.conf"
     config.write_text(render_rack(plan, {s.id: "test-only" for s in plan.sessions}))
     subprocess.run([str(BIRD), "-p", "-c", str(config)], check=True, capture_output=True)
+
+
+@pytest.mark.parametrize("interval", [50, 300])
+def test_logical_ovs_underlay_uses_native_unnumbered_bird(tmp_path, interval):
+    inputs = ovs_inputs()
+    inputs["config"].update({"bfd-min-tx-ms": interval, "bfd-min-rx-ms": interval})
+    plan = resolve_rack(**inputs)
+    assert len(plan.sessions) == 4
+    assert all(session.function is None and session.ovs_port for session in plan.sessions)
+    path = tmp_path / "ovs-underlay.conf"
+    path.write_text(render_rack(plan, {s.id: "test-only" for s in plan.sessions}))
+    subprocess.run([str(BIRD), "-p", "-c", str(path)], check=True, capture_output=True)

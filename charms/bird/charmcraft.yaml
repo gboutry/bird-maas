@@ -89,6 +89,13 @@ config:
       description: JSON array of routing domains with approved imports/exports and per-host NUMA
         contexts. Static source-wide rules and guards must be provisioned by the host network owner.
         This is the only supported routing model.
+    local-ovs-ports:
+      type: string
+      default: '[]'
+      description: >-
+        Explicit local OVS internal-interface selectors (serial, bridge, port,
+        physical uplink and optional uplink_bond). Only for BIRD sharing the
+        OVS kernel, normally on the DPU. Empty never invokes OVS discovery.
 actions:
   inspect:
     description: Show the accepted routing plan without credentials or full daemon configuration.

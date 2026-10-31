@@ -26,6 +26,8 @@ def restrict(
     documents,
     passwords=None,
     attachments=(),
+    *,
+    local_links=None,
 ):
     mode = advertisement_mode(config)
     host = previous.host
@@ -93,8 +95,18 @@ def restrict(
             and (passwords is None or passwords.get(s.id))
             and (
                 s.identity not in bindings
-                or (s.id, old.domain, s.function, s.vlan, s.chassis_id, s.peer)
+                or (s.id, old.domain, s.function, s.ovs_port, s.vlan, s.chassis_id, s.peer)
                 in bindings[s.identity]
+            )
+            and (
+                s.ovs_port is None
+                or local_links is None
+                or any(
+                    link.interface == s.interface
+                    and link.identity == s.identity
+                    and link.ovs_port == s.ovs_port
+                    for link in local_links
+                )
             )
             and host.local_asn == previous.host.local_asn
             and host.router_id == previous.host.router_id
@@ -138,6 +150,7 @@ def _attachment_bindings(documents):
                     a.id,
                     a.domain,
                     a.function,
+                    a.ovs_port,
                     a.vlan,
                     (a.chassis_id or "").lower(),
                     a.peer_link_local,

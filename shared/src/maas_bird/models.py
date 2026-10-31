@@ -2,8 +2,11 @@
 
 from ipaddress import IPv4Address, IPv4Network, IPv6Address
 from typing import Annotated, Literal
+from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
+
+from maas_bird import ovsdb
 
 Asn = Annotated[int, Field(strict=True, ge=1, le=4294967294)]
 
@@ -63,10 +66,68 @@ class Function(Record):
     vf: Annotated[int, Field(strict=True, ge=0)] | None = None
 
 
+class UplinkBinding(Record):
+    """Native same-card kernel membership and single-interface OVS uplink identity."""
+
+    physical: str | None = None
+    bond: str | None = None
+    members: tuple[str, ...] | None = None
+    serial: str | None = None
+    port_uuid: UUID | None = None
+    interface_uuid: UUID | None = None
+
+    @field_validator("physical", "bond")
+    @classmethod
+    def safe_names(cls, value):
+        return ovsdb.interface_name(value) if value is not None else None
+
+    @field_validator("members")
+    @classmethod
+    def canonical_members(cls, value):
+        if value is None:
+            return None
+        if len(set(value)) != len(value):
+            raise ValueError("Duplicate uplink members")
+        return tuple(sorted(ovsdb.interface_name(member) for member in value))
+
+    @property
+    def complete(self):
+        return all(
+            value is not None for key, value in self.model_dump().items() if key != "bond"
+        ) and bool(self.members)
+
+
+class OvsPort(Record):
+    """A logical attachment with native row identities, never PCI coordinates."""
+
+    bridge: str | None = None
+    port: str | None = None
+    bridge_uuid: UUID | None = None
+    port_uuid: UUID | None = None
+    interface_uuid: UUID | None = None
+    ifindex: Annotated[int, Field(strict=True, gt=0)] | None = None
+    vlan: Annotated[int, Field(strict=True, ge=1, le=4094)] | None = None
+    uplink: UplinkBinding | None = None
+
+    @field_validator("bridge", "port")
+    @classmethod
+    def safe_names(cls, value):
+        return ovsdb.interface_name(value) if value is not None else None
+
+    @property
+    def complete(self):
+        return (
+            all(value is not None for value in self.model_dump().values())
+            and self.uplink is not None
+            and self.uplink.complete
+        )
+
+
 class Attachment(Record):
     id: str | None = None
     function: Function | None = None
     observed_function: Function | None = None
+    ovs_port: OvsPort | None = None
     domain: str | None = None
     vlan: Annotated[int, Field(strict=True, ge=1, le=4094)] | None = None
     chassis_id: str | None = None
@@ -119,6 +180,7 @@ class Session(Record):
     identity: Identity | None = None
     peer_id: str | None = None
     function: Function | None = None
+    ovs_port: OvsPort | None = None
     vlan: int | None = None
     chassis_id: str | None = None
     numa_node: int | None = None

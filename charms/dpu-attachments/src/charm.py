@@ -28,7 +28,9 @@ class DpuAttachmentsCharm(ops.CharmBase):
             identities = {identity.value: identity for identity in discovery.cards().values()}
             local_config = [item for item in configured if item.get("serial") in identities]
             if local_config:
-                if any("host_function" not in item for item in local_config):
+                if any(
+                    "host_function" not in item and "ovs_port" not in item for item in local_config
+                ):
                     raise ValueError("Declare native DPU and canonical host function coordinates")
                 document = dpu.observe(local_config)
             else:

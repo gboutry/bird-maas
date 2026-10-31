@@ -88,9 +88,7 @@ def attachments_for_host(bag: MutableMapping[str, str], rack: str, identities: s
         if any(
             not attachment.id
             or not attachment.domain
-            or attachment.function is None
-            or attachment.function.controller is None
-            or attachment.function.pf is None
+            or not _complete_attachment_backend(attachment)
             or attachment.vlan is None
             or not attachment.chassis_id
             or attachment.peer_link_local is None
@@ -99,6 +97,23 @@ def attachments_for_host(bag: MutableMapping[str, str], rack: str, identities: s
         ):
             raise ValueError("Local attachment snapshot is incomplete")
     return document
+
+
+def _complete_attachment_backend(attachment):
+    if attachment.ovs_port is not None:
+        return attachment.function is None and (
+            attachment.ovs_port.complete
+            or (
+                attachment.ready is False
+                and attachment.ovs_port.bridge
+                and attachment.ovs_port.port
+            )
+        )
+    return (
+        attachment.function is not None
+        and attachment.function.controller is not None
+        and attachment.function.pf is not None
+    )
 
 
 def _header(bag, field):

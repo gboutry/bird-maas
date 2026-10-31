@@ -6,7 +6,7 @@ from ipaddress import IPv4Interface
 
 import ops
 from maas_bird import authority, discovery, external_policy
-from maas_bird.charm_support import observe, relations, secret_content
+from maas_bird.charm_support import config_string, json_list, observe, relations, secret_content
 from maas_bird.interfaces import application_data, publish
 from maas_bird.models import Inventory, InventoryRequest, RackRequest, advertisement_mode
 from maas_bird.observations import collect
@@ -60,15 +60,18 @@ class BirdCharm(ops.CharmBase):
         discovery_warnings = []
         try:
             links = discovery.links()
+            ovs_ports = json_list(config_string(self.config, "local-ovs-ports"), "local-ovs-ports")
+            if ovs_ports:
+                links += discovery.ovs_links(ovs_ports)
             identities = {link.identity for link in links}
-        except discovery.DiscoveryError:
+        except (discovery.DiscoveryError, ValueError, KeyError):
             # Discovery failure may block grants, never known revocations. Reuse
             # only accepted card identities to select local producer snapshots.
             previous = self._service().state()
             identities = (
                 {s.identity for s in previous.sessions if s.identity} if previous else set()
             )
-            links = []
+            links = None
             discovery_warnings.append(
                 "Local link discovery unavailable; no new adjacencies granted"
             )
@@ -108,6 +111,7 @@ class BirdCharm(ops.CharmBase):
         try:
             if isinstance(event, ops.RelationBrokenEvent) and event.relation.name == "inventory":
                 raise AuthorizationWithdrawn("The authoritative inventory relation was removed")
+            service.verify_current(check_bindings=False)
             inputs, cache, warnings = self._inputs(event)
             if not self.config["bgp-credentials"]:
                 raise AuthorizationWithdrawn("BGP credentials were withdrawn")
@@ -117,7 +121,9 @@ class BirdCharm(ops.CharmBase):
                 raise AuthorizationWithdrawn("BGP credential authorization was removed") from exc
             previous = service.state()
             if previous is not None:
-                service.verify_current()
+                # Static source guards must hold even for a malformed proposal.
+                # A known logical-port revocation commits its restrictive floor
+                # before verifying the remaining accepted OVS UUID bindings.
                 restricted = authority.restrict(
                     previous,
                     inputs["config"],
@@ -125,9 +131,11 @@ class BirdCharm(ops.CharmBase):
                     inputs["advertisements"],
                     passwords,
                     inputs["attachments"],
+                    local_links=inputs["local_links"],
                 )
                 if restricted != previous or service.credentials_changed(restricted, passwords):
                     service.apply_plan(restricted, passwords, restrictive=True, observations=cache)
+                service.verify_current()
             self._state.observations = cache
             plan = resolve_rack(**inputs)
             self._check_addresses(plan)

@@ -2,13 +2,18 @@
 
 import json
 
-from maas_bird import discovery
-from maas_bird.models import Attachment, Attachments, Card, Function
+from maas_bird import discovery, ovsdb
+from maas_bird.models import Attachment, Attachments, Card, Function, OvsPort
 
 
 def observe(configured: list[dict]) -> Attachments:
     serials = discovery.cards()
     ports, neighbors = discovery.dpu_observations()
+    ovs_state = (
+        ovsdb.snapshot(discovery.command)
+        if any(item.get("uplink_bond") and item.get("ovs_port") is None for item in configured)
+        else None
+    )
     by_serial = {}
     for item in configured:
         serial = item["serial"]
@@ -17,6 +22,13 @@ def observe(configured: list[dict]) -> Attachments:
         )
         if identity is None:
             raise ValueError("Configured card serial is not present on this DPU")
+        if item.get("ovs_port") is not None:
+            if item.get("function") is not None or item.get("host_function") is not None:
+                raise ValueError("Declare either physical coordinates or an OVS internal port")
+            by_serial.setdefault(serial, (identity, []))[1].append(
+                _logical_attachment(item, neighbors)
+            )
+            continue
         coordinates = Function.model_validate(item["function"])
         # DPU representor coordinates and host PCI coordinates are different
         # namespaces. The provisioning owner must declare their mapping explicitly.
@@ -38,7 +50,9 @@ def observe(configured: list[dict]) -> Attachments:
                 coordinates.vf,
             ):
                 matches.append(port)
-        ready = len(matches) == 1
+        ready = (
+            len(matches) == 1 and discovery.netdev_identity(item["uplink"], serials) == identity
+        )
         chassis = item["chassis_id"].lower()
         ready = ready and discovery.lldp_chassis(neighbors, item["uplink"]) == {chassis}
         if ready:
@@ -47,9 +61,13 @@ def observe(configured: list[dict]) -> Attachments:
                 ready = False
             else:
                 bridge = discovery.command(["ovs-vsctl", "iface-to-br", representor]).strip()
-                uplink_bridge = discovery.command(
-                    ["ovs-vsctl", "iface-to-br", item["uplink"]]
-                ).strip()
+                uplink_bridge = discovery.ovs_uplink_bridge(
+                    item["uplink"],
+                    identity,
+                    serials,
+                    bond=item.get("uplink_bond"),
+                    state=ovs_state,
+                )
                 trunks = discovery.command(["ovs-vsctl", "get", "Port", representor, "trunks"])
                 # Require explicit VLAN membership; do not assume an empty trunk list means safe.
 
@@ -74,4 +92,35 @@ def observe(configured: list[dict]) -> Attachments:
             Card(identity=identity, attachments=tuple(attachments))
             for identity, attachments in by_serial.values()
         )
+    )
+
+
+def _logical_attachment(item, neighbors):
+    """An internal netdev is owned by this DPU kernel, not by a host PCI VF."""
+    selector = item["ovs_port"]
+    if set(selector) != {"bridge", "port"}:
+        raise ValueError("Declare only bridge and port in an OVS attachment selector")
+    ovsdb.interface_name(selector["bridge"])
+    ovsdb.interface_name(selector["port"])
+    local = {
+        "bridge": selector["bridge"],
+        "port": selector["port"],
+        **{key: item[key] for key in ("serial", "uplink")},
+    }
+    if "uplink_bond" in item:
+        local["uplink_bond"] = item["uplink_bond"]
+    links = discovery.ovs_links([local])
+    link = links[0] if len(links) == 1 else None
+    return Attachment(
+        id=item["id"],
+        ovs_port=link.ovs_port if link else OvsPort.model_validate(selector),
+        domain=item["domain"],
+        vlan=item["vlan"],
+        chassis_id=item["chassis_id"].lower(),
+        peer_link_local=item["peer_link_local"],
+        ready=(
+            link is not None
+            and link.vlan == item["vlan"]
+            and discovery.lldp_chassis(neighbors, item["uplink"]) == {item["chassis_id"].lower()}
+        ),
     )

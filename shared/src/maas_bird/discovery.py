@@ -7,7 +7,8 @@ from dataclasses import dataclass
 from ipaddress import IPv6Address
 from pathlib import Path
 
-from maas_bird.models import Identity
+from maas_bird import ovsdb
+from maas_bird.models import Identity, OvsPort
 
 
 class DiscoveryError(RuntimeError):
@@ -44,12 +45,24 @@ def host_uuid(root: Path = Path("/sys")) -> str:
 class LocalLink:
     interface: str
     identity: Identity
-    controller: int
-    pf: int
+    controller: int | None
+    pf: int | None
     vf: int | None
     vlan: int | None
     link_local: IPv6Address | None
     numa_node: int | None = None
+    ovs_port: OvsPort | None = None
+
+    def __post_init__(self):
+        if self.ovs_port is None:
+            if self.controller is None or self.pf is None:
+                raise ValueError("Physical local link requires native function coordinates")
+        elif (
+            any(value is not None for value in (self.controller, self.pf, self.vf))
+            or not self.ovs_port.complete
+            or self.vlan != self.ovs_port.vlan
+        ):
+            raise ValueError("Logical local link cannot invent physical coordinates")
 
 
 def links(root: Path = Path("/sys")) -> list[LocalLink]:
@@ -136,6 +149,112 @@ def dpu_observations() -> tuple[dict, dict]:
     ports = json.loads(command(["devlink", "-j", "port", "show"]))
     neighbors = json.loads(command(["lldpcli", "-f", "json", "show", "neighbors"]))
     return ports, neighbors
+
+
+def netdev_identity(interface, serials, root=Path("/sys")):
+    """Find a physical netdev's card through PCI or auxiliary sysfs ancestry."""
+    ovsdb.interface_name(interface)
+    device = root / "class/net" / interface / "device"
+    if not device.is_symlink():
+        return None
+    path = device.resolve()
+    return next((serials[p.name] for p in (path, *path.parents) if p.name in serials), None)
+
+
+def ovs_links(configured, root=Path("/sys")) -> list[LocalLink]:
+    """Discover only explicitly selected, local-card OVS internal interfaces.
+
+    This backend runs in the OVS kernel namespace, normally on the DPU itself.
+    It never treats a host VF as a DPU internal interface. Ordinary hosts invoke
+    no OVS commands unless the operator opts in with local-ovs-ports.
+    """
+    if not configured:
+        return []
+    serials = cards()
+    local = {identity.value: identity for identity in serials.values()}
+    selected = [item for item in configured if item.get("serial") in local]
+    if not selected:
+        return []
+    state = ovsdb.snapshot(command)
+    addresses = json.loads(command(["ip", "-j", "-d", "address", "show"]))
+    result = []
+    for item in selected:
+        identity = local[item["serial"]]
+        if set(item) - {"serial", "bridge", "port", "uplink", "uplink_bond"}:
+            raise ValueError("Unknown local OVS attachment intent field")
+        try:
+            port = ovsdb.binding(
+                state,
+                item["bridge"],
+                item["port"],
+                item["uplink"],
+                item["serial"],
+                {pci: i.value for pci, i in serials.items()},
+                root,
+                bond=item.get("uplink_bond"),
+            )
+            matches = [a for a in addresses if a["ifname"] == item["port"]]
+            if len(matches) != 1 or matches[0]["ifindex"] != port["ifindex"]:
+                raise ovsdb.TopologyError("Internal interface no longer matches its kernel netdev")
+        except ovsdb.TopologyError:
+            continue  # Known absence revokes this binding, not unrelated paths.
+        except OSError as exc:
+            raise DiscoveryError("Cannot inspect native OVS uplink ownership") from exc
+        link_local = [
+            IPv6Address(a["local"])
+            for a in matches[0].get("addr_info", [])
+            if a["family"] == "inet6"
+            and a.get("scope") == "link"
+            and not a.get("tentative", False)
+            and not a.get("dadfailed", False)
+        ]
+        result.append(
+            LocalLink(
+                item["port"],
+                identity,
+                None,
+                None,
+                None,
+                port["vlan"],
+                link_local[0] if len(link_local) == 1 else None,
+                ovs_port=OvsPort.model_validate(port),
+            )
+        )
+    if len({link.interface for link in result}) != len(result):
+        raise ValueError("Duplicate local OVS interface selectors")
+    return result
+
+
+def ovs_uplink_bridge(
+    interface: str,
+    identity: Identity,
+    serials: dict[str, Identity],
+    root: Path = Path("/sys"),
+    *,
+    bond: str | None = None,
+    state=None,
+) -> str | None:
+    """Resolve a direct uplink or explicitly approved same-card LACP aggregate.
+
+    The kernel master and its single-interface OVS Port are both verified. A
+    physical LLDP member is not treated as a separate OVS uplink. Read failures
+    remain unknown; observed structural mismatches refuse readiness.
+    """
+    ovsdb.interface_name(interface)
+    if bond is None:
+        return command(["ovs-vsctl", "iface-to-br", interface]).strip()
+    try:
+        native = {pci: card.value for pci, card in serials.items()}
+        ovsdb.kernel_uplink(interface, identity.value, native, root, bond=bond)
+        state = ovsdb.snapshot(command) if state is None else state
+        bridge_uuid, _ = ovsdb.uplink_binding(
+            state, interface, identity.value, native, root, bond=bond
+        )
+        return next(row["name"] for row in state["Bridge"] if row["_uuid"] == bridge_uuid)
+    except ovsdb.TopologyError:
+        return None
+    except OSError as exc:
+        raise DiscoveryError("Cannot validate kernel LACP uplink membership") from exc
 
 
 def lldp_chassis(neighbors: dict, interface: str) -> set[str]:

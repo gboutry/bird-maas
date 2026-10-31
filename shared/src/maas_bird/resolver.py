@@ -33,6 +33,8 @@ class AuthorizationWithdrawn(InvalidIntent):
 
 
 def resolve_rack(uid, inventory, attachments, advertisements, local_links, config):
+    if local_links is None:
+        raise NotReady("Local link discovery is unavailable")
     mode = advertisement_mode(config)
     if inventory.rack != config["rack"]:
         raise InvalidIntent("Inventory relation does not match this application's rack")
@@ -330,16 +332,25 @@ def _resolve_attachment(
     if attachment.ready is not True:
         raise NotReady("A local attachment is not ready")
     f = attachment.function
-    if not f or f.controller is None or f.pf is None:
+    if attachment.ovs_port is not None and f is not None:
+        raise InvalidIntent("Attachment mixes physical and logical selectors")
+    if attachment.ovs_port is None and (not f or f.controller is None or f.pf is None):
         raise NotReady("Attachment function coordinates are incomplete")
     if not attachment.chassis_id or attachment.chassis_id.lower() not in peers:
         raise InvalidIntent("Local attachment reaches an unapproved TOR")
-    matches = [
-        link
-        for link in candidates
-        if (link.controller, link.pf, link.vf, link.vlan)
-        == (f.controller, f.pf, f.vf, attachment.vlan)
-    ]
+    if attachment.ovs_port is not None:
+        if not attachment.ovs_port.complete or attachment.ovs_port.vlan != attachment.vlan:
+            raise NotReady("Logical OVS attachment identity is incomplete")
+        matches = [link for link in candidates if link.ovs_port == attachment.ovs_port]
+    else:
+        assert f is not None
+        matches = [
+            link
+            for link in candidates
+            if link.ovs_port is None
+            and (link.controller, link.pf, link.vf, link.vlan)
+            == (f.controller, f.pf, f.vf, attachment.vlan)
+        ]
     if len(matches) != 1:
         raise (
             NotReady("Waiting for one matching local interface")
@@ -365,6 +376,7 @@ def _resolve_attachment(
         identity=link.identity,
         peer_id=peer.id,
         function=attachment.function,
+        ovs_port=link.ovs_port,
         vlan=attachment.vlan,
         chassis_id=attachment.chassis_id.lower(),
         numa_node=link.numa_node,

@@ -28,6 +28,11 @@ def observed(monkeypatch):
         }
     }
     monkeypatch.setattr(discovery, "dpu_observations", lambda: (ports, lldp))
+    monkeypatch.setattr(
+        discovery,
+        "netdev_identity",
+        lambda interface, serials: Identity(scheme="devlink-serial", value="card1"),
+    )
     calls = []
 
     def command(args):
@@ -86,5 +91,15 @@ def test_missing_explicit_trunk_membership_is_not_ready(observed, monkeypatch):
     config, *_ = observed
     monkeypatch.setattr(
         discovery, "command", lambda args: "[]" if args[-1] == "trunks" else "br-data"
+    )
+    assert first_attachment(config).ready is False
+
+
+def test_direct_uplink_on_a_different_card_is_not_ready(observed, monkeypatch):
+    config, *_ = observed
+    monkeypatch.setattr(
+        discovery,
+        "netdev_identity",
+        lambda interface, serials: Identity(scheme="devlink-serial", value="another-card"),
     )
     assert first_attachment(config).ready is False
