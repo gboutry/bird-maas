@@ -1,283 +1,117 @@
-# Contracts and ownership
+# Rack-scoped routing design
 
-The proposed interfaces are `machine-inventory`, `host-attachments`, and
-`route-advertisements`. These names have not been registered as public standards.
-Their library lives in `maas_bird.interfaces`; runtime implementation is independently
-testable and contains no Juju operations. Both endpoints import the same models.
+## Ownership and scale
 
-## Relation data
+One MAAS adapter holds the MAAS credential. Its leader performs GET-only HTTPS
+requests with certificate verification and no redirects. That limits this
+client's behavior; it does not make an otherwise privileged MAAS token read-only
+at the server. Use the least privileged service identity MAAS actually supports.
+No API keys, full machine objects or unrelated MAAS metadata enter relations.
 
-Every top-level model field defaults to `None`. Empty bags and unknown additive fields
-parse; incompleteness is handled separately from parsing. Collections serialize as
-stable arrays of objects, are deduplicated on reception, and are not keyed by arbitrary
-rack names or hardware IDs. Top-level values are JSON strings in Juju databags.
+Each BIRD application selects one immutable rack. The adapter publishes only
+that rack's hosts and peers to that relation. Each BIRD unit selects its physical
+DMI UUID, then selects matching card identities and host/domain workload headers
+before validating payloads. A malformed unrelated producer cannot block a local
+withdrawal. A separate fabric controller is not required.
 
-| Interface | Writer | Model / field |
+With 60 racks of 40 hosts, the topology is one inventory app, 60 BIRD apps and up
+to 60 DPU observer apps. BIRD/DPU/workload relation fan-out stays inside each rack.
+A changed relation is serviced individually; a MAAS refresh can update all rack
+slices, while canonical unchanged databags generate no writes. Relation-event
+requests reuse a bounded positive/negative MAAS cache. Each JSON field is limited
+to 48 KiB. Content/property checks are not evidence that a 2,400-unit Juju model
+meets an event-latency or controller-capacity objective.
+
+## Relations
+
+Wire format is one canonical JSON value per named relation field. The private
+shared library is not a registered public Charmhub interface. Schemas are
+exported directly from the models under `docs/schemas/`; additive unknown fields
+are ignored, while invalid known fields reject the snapshot.
+
+| Endpoint | Writer | Fields and meaning |
 |---|---|---|
-| machine-inventory | provider application leader | Inventory.hosts |
-| machine-inventory | consumer unit | InventoryRequest.system_uuid |
-| host-attachments | provider unit | Attachments.cards |
-| route-advertisements | trusted workload unit | Advertisements.advertisements |
+| `machine-inventory`, consumer app | BIRD leader | `rack`: immutable rack request |
+| `machine-inventory`, consumer unit | Each BIRD unit | `system_uuid`: observed local DMI UUID |
+| `machine-inventory`, provider app | Inventory leader | `rack`, `hosts`: selected MAAS identities, ASNs, router IDs and approved TORs |
+| `host-attachments`, provider unit | Each DPU unit | `rack`, `cards`: card identity and attachment observations |
+| `route-advertisements`, provider unit | Workload owner | `rack`, `machine_id`, `domain`, `advertisements`: complete readiness snapshot for that host/domain |
 
-The schemas in `schemas/` are generated directly from the code with `make schemas`.
-Consumers tolerate unknown fields and must not change the meaning or type of published
-fields. Old/new test vectors must pass before library compatibility changes. No
-mandatory version envelope or version-suffixed interface name is assumed.
+A host record contains `machine_id`, `system_uuid`, `rack`, `local_asn`,
+`router_id`, and peers with `id`, `chassis_id`, `asn`. The inventory app joins
+explicit routing allocations with MAAS `system_id`, `hardware_uuid` and exactly
+one `rack-<id>` tag. Missing or invalid host observations confer no new authority.
+A complete successful host removal revokes it; a failed API request does not
+synthesize an empty snapshot. During an outage, only restrictions of previously
+published authority may be delivered.
 
-An absent advertisement field means unknown, not withdrawn. An explicit empty array
-is the producer's complete empty snapshot. Every producer must supply a complete
-snapshot; records for other hosts are ignored after validation. Duplicate matching
-inventory or DPU producers are rejected. Matching host/card identity is not a permission
-grant. Producers are trusted through explicit Juju integration, with an operator export
-allowlist as a further constraint.
+An attachment identifies a card using `{scheme,value}` and has `id`, `domain`,
+`function`, `observed_function`, `vlan`, `chassis_id`, `peer_link_local`, `ready`.
+`function` is the canonical **host** controller/PF/VF tuple. `observed_function`
+is the native DPU tuple. They may differ; provisioning must declare the mapping.
+The host matches card identity plus exact function/VLAN, and verifies local NUMA
+and scoped link-local adjacency. A retained attachment ID does not authorize a
+changed function, VLAN, peer, or TOR chassis.
 
-## Host and DPU matching
+Workload records contain `machine_id`, `domain`, `prefix`, `context`, `ready`.
+They may advertise only explicitly bound /32 sources inside the operator's
+allowlist. An unavailable snapshot retains the last accepted producer observation;
+a complete empty list or departure withdraws that producer's exports. Duplicate
+local domain publishers quarantine the disputed domain, rather than blocking
+valid withdrawals elsewhere. `inspect` exposes an allowlisted plan, not secret
+contents or the private startup bundle.
 
-MAAS hardware_uuid joins the host's DMI product UUID. It must be unique among allocated
-hosts. MAAS machine tags `rack-a`/`rack-b` select explicit profiles `a`/`b`; the MAAS
-rack-controller identity is not interpreted as a physical rack. ASN and router ID
-allocations are explicit, with duplicate allocations rejected.
+Relations establish application-level trust through Juju. A self-reported unit
+header, card serial or LLDP chassis is not cryptographic hardware attestation.
+Only integrate trusted publisher applications; explicit operator allocations
+remain the upper bound on their grants.
 
-On N5, read-only observations established these equalities between host PFs and DPU
-ARM-side devlink devices (this is evidence for those cards, not fleet-wide attestation):
+## Domains and NUMA policy
 
-| Host PF | Device serial | Board serial |
-|---|---|---|
-| 0000:41:00.0 | d0d69bc89789ef118000b8e9243735f6 | 53FV4AC00K6 |
-| 0000:c1:00.0 | 3ad6c4c29789ef118000b8e9243735d0 | 53FV4AC00K5 |
+`routing-domains` is the only supported BIRD configuration model. Each domain has
+approved imports/exports and host-bound contexts. Every context names a MAAS
+machine, NUMA cell, dedicated table, reserved source-rule priority and /32 VIPs.
+VIP allocations cannot overlap between hosts or domains. Management prefixes
+cannot be imported or used as managed source bindings.
 
-Generic identity scheme/value pairs join attachment records to local discovery. The
-host walks sysfs physfn/virtfn links to find the actual VF number; PCI BDF and Linux
-interface names are not global identities. The initial host discovery adapter assumes
-controller 0 and conventional PF PCI function numbers. Other controller topologies
-need a new validated adapter, not relaxed matching.
+The provisioning owner installs one source-wide rule per VIP, selecting that
+context's table for every destination, followed by an exact unreachable-default
+guard (protocol 196, metric 42760). BIRD installs only approved imports into those
+tables. If both fabric paths fail, the guard prevents falling through to `main`.
+Ordinary management sources retain their existing policy. The kernel local table
+remains first, so local delivery is intentionally not intercepted by this design.
 
-The DPU provider checks configured card serial, devlink coordinates, explicit OVS
-trunk membership, common bridge membership, and LLDP chassis identity. It does not
-prove end-to-end reachability or hardware offload. It cannot infer isolation through
-arbitrary bonds/bridges; only use approved, pre-provisioned isolated adjacencies. A host
-can therefore match a DPU without the DPU having MAAS access or knowing the host UUID.
+Each context prefers the attachment on its NUMA cell and retains the other TOR
+as backup. BIRD exports a large community `(host-ASN, context-table, preference)`
+with preference 1 for the local attachment and 0 for backup. The TOR owner must
+implement corresponding ingress policy. These communities are intent, not proof
+of NUMA locality at a DPU or hardware forwarding after failover.
 
-## Local routing
+## Lifecycle and rollback
 
-With `routing-contexts=[]` the existing single-table behavior is unchanged. Legacy
-policy rules remain externally managed. NUMA mode is explicit and uses host PF sysfs
-`numa_node` (following the VF's `physfn`), not a DPU ARM CPU node. An unknown node blocks
-NUMA activation. Interfaces, addresses and TOR peers remain pre-provisioned.
+One root-private atomic bundle contains the accepted plan, configuration, policy
+recipe, producer bindings, credential hashes and native generation token. It
+contains BGP passwords in its configuration and must never be included in support
+bundles. The root startup helper checks ownership, host UUID, configuration hash
+and current static policy, then materializes a root-owned, bird-readable volatile
+configuration. BIRD runs without root, with narrowly declared network capabilities.
 
-### Context configuration and relations
+First startup uses a zero-export baseline. New grants use BIRD's native 60-second
+configuration timeout, require the intended generation and necessary sessions/
+paths, and receive positive confirmation inside a shorter 35-second deadline.
+A no-op confirmation is not acceptance. Agent death before confirmation leaves
+the native daemon responsible for timed rollback.
 
-`routing-contexts` is a JSON array with `id`, optional `machine_id`, `numa_node`, `table`,
-`rule_priority`, and `sources` (authorized VIP /32s). `machine_id` refers to the MAAS
-machine ID. A host selects its entries; a nonempty configuration with no host entry
-blocks rather than silently selecting legacy mode. Omitting `machine_id` applies the
-entry to every host, so fleet-specific addresses normally need explicit machine IDs.
-The corresponding `route-advertisements` record adds the optional `context` field:
+Restrictive changes first persist an authorization floor and never keep a stale
+undo target. Live acknowledgement failure stops the owned daemon; restart can
+load only that floor. Invalid static-layout proposals preserve valid accepted
+routing and require an explicit provisioning migration. Drift in accepted static
+policy stops routing. Inventory/credential authorization removal invalidates
+startup authority before stopping. Decommission removes only owned daemon files,
+leaving provisioning-owned network objects intact.
 
-```json
-{"machine_id":"abc123","domain":"storage-public","prefix":"10.60.11.11/32",
- "ready":true,"context":"numa0"}
-```
-
-This is additive to the existing relation schema; legacy mode accepts old producers.
-NUMA mode requires the context ID on every matching advertisement. Reserved source
-bindings remain even when an advertisement is withdrawn; only ready, locally present
-VIPs are exported. The DPU relation does not acquire a host NUMA field: matching card
-identity plus host-local PCI discovery supplies locality without making BIRD DPU-specific.
-
-### Route selection
-
-There is one BGP/BFD adjacency per approved attachment. Each BGP adjacency has its own
-BIRD table, preserving the route from each TOR before a context makes its decision.
-One-way pipes copy BGP routes into each context, preference 200 for the local NUMA
-attachment and 100 for a remote attachment. Separate kernel protocols install the
-context winners in dedicated kernel tables. Local service routes are exported through
-both adjacencies; ingress preference remains a separate TOR policy.
-
-For every configured source /32 and exact approved public import prefix, a rule selects
-that context's table. In single-domain mode, rule priorities start at `rule_priority` and consume
-`sources × imports` consecutive values. Context IDs, tables, sources and priority ranges
-must be unique. Tables are >=1000, priorities 1000–32000. Public imports cannot be default
-routes or overlapping prefixes. `protected-prefixes` is mandatory and must include the
-operator's management/replication networks; any overlap with imports blocks activation.
-This protects declared networks, not undisclosed network intent.
-
-The process must bind/use the correct VIP source. This does not pin a process, migrate
-memory, steer IRQs or prove that all packet handling stays within a NUMA node. No ECMP,
-TOR provisioning or hardware offload verification is implemented.
-
-### Ownership, rollback and failure behavior
-
-Before activation, all context tables must be empty, priorities unused, and overlapping
-foreign policy rules absent. Kernel policy uses protocol 196; each table has an
-`unreachable default` at metric 42760. Rules match only source plus public destination,
-so protected destinations retain their existing routing. A missing BGP route hits the
-guard instead of falling through to the main-table management default. Guards are owned
-by the charm, independently of BIRD, and survive daemon stop/crash. Disabling the charm
-or losing a trusted relation stops BIRD but keeps policy fail-closed.
-
-The root-owned journal records owner, exact layout, acknowledged operations and a
-pending operation. It is fsynced before mutations. Initial failure removes only exact
-acknowledged objects, after stopping the owned BIRD service. A present operation with
-no recorded acknowledgement is ambiguous: reconciliation and removal block for operator
-inspection rather than adopting or deleting it. Foreign replacements also block cleanup.
-No rule/table flush is used. Decommissioning removes the owned service and acknowledged
-policy objects; selectors, priorities and tables are immutable until decommissioning.
-
-BIRD candidates pass the real parser and use native timed reconfiguration. Confirmation
-requires all expected BGP sessions, IPv4 extended-next-hop negotiation, BFD Up and a
-NUMA-local route for every public import in every context. Unconfirmed candidates roll
-back to the previous BIRD generation without changing policy bindings. Autonomous BFD
-failover can temporarily use remote paths; a subsequent reconciliation can report
-waiting while degraded rather than confirming a new degraded candidate. This is not
-coordinated rollback with TORs or a guarantee of atomic recovery across daemon/host crashes.
-
-Legacy BFD timers are application-wide; multiple-domain overrides are described below.
-Negotiated behavior is authoritative. 50 ms x3 is
-nominal detection around 150 ms under symmetric negotiation, not 50 ms service recovery.
-BGP authentication secrets remain mandatory; BFD authentication and network admission
-controls remain deployment requirements.
-
-## Multiple-domain ownership
-
-The optional `routing-domains` JSON array is validated with `RoutingDomain` and
-`ContextIntent`; its schema is `docs/schemas/routing-domains-config.json`. Operator
-configuration rejects unknown fields so a misspelled timer cannot silently select a
-default. Relation records retain their existing additive-field compatibility.
-
-Each domain has an `id`, `import_prefixes`, `export_allowlist`, and `contexts` array.
-Optional `bfd_min_tx_ms`, `bfd_min_rx_ms`, `bfd_multiplier`,
-`bgp_hold_time_seconds`, and `bgp_keepalive_time_seconds` override application defaults.
-The same local ASN/router ID and inventory-approved TOR set apply to each domain.
-Context IDs are scoped to their domain; tables, source bindings, interface ownership,
-session credential IDs and rule priority ranges are host-wide and cannot collide.
-
-All domains resolve before any runtime mutation. Each matches only attachments and
-advertisements bearing its domain ID. Unknown host NUMA locality, an absent host
-context, missing readiness, or invalid domain intent prevents accepting a generation.
-Explicitly withdrawing replication advertisements removes those exports without
-withdrawing public exports. An incomplete snapshot retains the previous generation;
-it is not an authoritative withdrawal.
-
-The wire schemas already carry the required information, so no incompatible relation
-change or new relation endpoint is introduced:
-
-| Interface | Domain information | Scope |
-|---|---|---|
-| `machine-inventory` | Host UUID, MAAS ID, router ID/ASN and approved rack TORs | Shared host identity |
-| `host-attachments` | `cards[].attachments[].domain`, unique session ID, function/VLAN and peer | One domain per approved adjacency |
-| `route-advertisements` | `advertisements[].machine_id`, `domain`, `context`, `prefix`, `ready` | Authorized service source in one domain/context |
-
-The files in `examples/multiple-domains/` show complete provider documents before
-encoding. Each top-level relation field remains JSON-encoded in the Juju databag by
-`maas_bird.interfaces`. MAAS inventory is not copied onto DPUs; they still publish
-observed card identity and attachment data, while host discovery supplies NUMA locality.
-
-### Forwarding and failure isolation
-
-The renderer namespaces all domain-specific tables, direct protocols, pipes and kernel
-protocols, with globally unique BGP protocol numbers. It never pipes routes between
-domains. Exact import filters reject routes offered on the wrong domain session;
-service exports are restricted to that domain's ready local VIPs. There is one Device
-protocol and one BFD instance, with separate interface timer clauses per domain. Multiple
-unrestricted BFD instances would compete for session requests; the shared instance
-avoids that ambiguity. See the [BIRD BFD documentation](https://bird.nic.cz/doc/bird-2.18.html).
-
-For each source VIP, policy rules cover the union of all managed destination prefixes,
-but every rule selects that VIP's own context table. Only its domain's routes are
-installed there. Foreign-domain destinations therefore hit the unreachable default.
-Each source consumes `all managed destinations` priorities, including these cross-domain
-guards; validation reserves the complete range. Unmanaged management destinations do
-not match these rules. Route acceptance also rejects foreign unicast destinations in
-a context table, rather than confirming a potentially leaking candidate.
-
-This is policy separation for configured sources and forwarded destinations, not a
-security boundary between local processes or host-local addresses. The kernel local
-routing table is consulted first. Overlapping networks, VRF provisioning, firewall
-isolation and source enforcement are outside this implementation.
-
-### Transaction boundaries
-
-The ownership journal includes domain IDs and context/table/source assignments. An
-active layout cannot be silently renamed, removed, reassigned or expanded; explicitly
-decommission before changing it. Initial multi-domain installation adds all guards
-before rules, and a known failure rolls back all acknowledged operations across domains.
-An ambiguous operation, foreign replacement or owner mismatch still blocks adoption
-and deletion. Cleanup never flushes a table or removes foreign routes.
-
-One BIRD candidate contains all domains. The parser and native timeout cover the whole
-candidate; the charm confirms only after all expected BGP/BFD sessions and all context
-routes satisfy acceptance. A failed candidate leaves the existing journal and previous
-BIRD generation intact. A timer/preference change can be attempted without changing the
-immutable kernel layout. A domain path failure can use its own remote NUMA backup while
-other domains keep local paths. Host-wide daemon failure or removal of a trusted producer
-is a shared failure domain by design, not an independently restartable per-domain service.
-
-## 60 racks
-
-One inventory application can serve all racks without one MAAS credential per host.
-Its leader currently performs one batched MAAS machine-list read per reconciliation
-and publishes compact allocated records only when content changes. Data volume is O(H)
-for H allocated hosts. Delivery to all H BIRD units can approach O(H^2) aggregate
-inventory traffic during a complete refresh; there is no hidden per-unit targeting.
-DPU unit relations have their own fan-out as well.
-
-Do not claim 60-rack support without measuring actual host counts, payload sizes,
-relation events, controller queueing, full refresh and recovery. Partition applications
-and relation inventories if those measurements require it. Selective relation
-publication is not implemented in this first version. DPU units select their own
-serials from shared application intent; changes to that list still fan out. Runtime BGP/BFD failure detection remains local and independent of this
-control-plane scale limit.
-
-## Verification levels
-
-1. Unit tests: interface evolution, identity joins, filtering, guards and rollback paths.
-2. Ops state-transition tests: actual charm event handlers and unit/app relation writes.
-3. Native tests: BIRD2.14 parses configs; localhost daemons exchange and withdraw a route.
-4. Pack: experimental Charmcraft monorepo resolves the shared sibling dependency.
-5. Isolated Juju smoke: packaged hooks and relation behavior with routing disabled.
-6. Namespace integration: actual unnumbered BGP/BFD, source routing, packet delivery,
-   silent faults, fail-closed behavior and rollback on synthetic TORs.
-7. Still required: physical TOR/DPU faults, supported DPU topologies, CPU load and
-   hardware offload. No production readiness claim follows
-   from the previous levels alone.
-
-## Fail-closed lifecycle corrections
-
-The standalone standard-library policy journal records the kernel boot ID. A new
-boot can restore a complete committed ledger only when its tables and priorities
-are unoccupied. It installs all unreachable guards before source rules. A partial
-restore retains acknowledged guards; a present unacknowledged operation requires
-inspection. Same-boot missing objects remain drift, not permission to adopt them.
-Guard identity includes TOS and other selectors; restricted foreign guards cannot
-be adopted or removed as catch-all guards.
-
-An enabled early oneshot restores policy before `network-pre.target`. The BIRD
-unit requires it and repeats the locked check in `ExecStartPre`, including ordinary
-restarts. The helper is installed independently of the Juju agent virtualenv.
-This ordering is not a firewall or proof that every unrelated service is prevented
-from sending before policy restoration; physical boot acceptance remains required.
-
-Candidate acceptance requires the intended unique BIRD symbol and a monotonic
-40-second deadline inside the native 60-second rollback window. Positive native
-confirmation is mandatory; exit zero with `Nothing to do` is not confirmation.
-Changed configurations start a stopped owned daemon before querying it. Initial
-failures remove the candidate and stop routing; status distinguishes this from
-retaining an earlier accepted configuration.
-
-The runtime persists export authorization before loading candidates. A withdrawal
-invalidates the previous saved generation and stops BIRD before trying the new
-one. If acceptance fails, the withdrawn generation cannot be its rollback target;
-this deliberately trades routing availability for authorization correctness and
-may interrupt other domains sharing that BIRD process. Policy guards remain.
-A complete inventory snapshot excluding this host is also an explicit revocation;
-a missing snapshot is still an availability failure. Producer provenance is saved
-before activation, so unsuccessful activation cannot hide subsequent removal.
-Disk invalidation failure still attempts process stop; storage or stop failure is
-an operational error, not evidence that revocation completed successfully.
-
-Ownership claiming is separate from idempotent preparation. Retrying the same
-owner completes missing files and reloads systemd even when files already match.
-Configured kernel-table ownership remains immutable. These corrections do not
-provide distributed transactions with TORs or crash-atomic changes across kernel,
-filesystem, BIRD and Juju state.
+Revocation is not instantaneous while the Juju agent is stopped or disconnected.
+The durable floor prevents resurrection after it has been committed; it is not an
+out-of-band liveness guarantee. Host provisioning must also gate workloads at
+boot: starting Ceph before static guards exist is outside what BIRD's own prestart
+checker can protect.

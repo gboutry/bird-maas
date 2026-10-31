@@ -1,0 +1,14 @@
+{
+  "rack": "a",
+  "machine_id": "example-host-a",
+  "domain": "ceph-public",
+  "advertisements": [
+    {
+      "machine_id": "example-host-a",
+      "domain": "ceph-public",
+      "prefix": "10.60.1.11/32",
+      "context": "numa0",
+      "ready": true
+    }
+  ]
+}
