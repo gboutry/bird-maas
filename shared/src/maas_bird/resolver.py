@@ -5,7 +5,16 @@ import re
 from ipaddress import IPv4Network
 
 from maas_bird.discovery import LocalLink
-from maas_bird.models import Advertisements, Attachments, Inventory, Plan, RoutingContext, Session
+from maas_bird.models import (
+    Advertisements,
+    Attachments,
+    Inventory,
+    MultiDomainPlan,
+    Plan,
+    RoutingContext,
+    RoutingDomain,
+    Session,
+)
 
 
 class NotReady(RuntimeError):
@@ -23,7 +32,14 @@ def resolve(
     advertisements: list[Advertisements],
     local_links: list[LocalLink],
     config: dict,
-) -> Plan:
+) -> Plan | MultiDomainPlan:
+    raw = json.loads(config.get("routing-domains", "[]"))
+    if not isinstance(raw, list) or any(not isinstance(item, dict) for item in raw):
+        raise InvalidIntent("routing-domains must be an array of objects")
+    if raw:
+        return resolve_domains(
+            uid, inventory, attachments, advertisements, local_links, config, raw
+        )
     hosts = [h for h in inventory.hosts or () if h.system_uuid == uid.lower()]
     if len(hosts) != 1:
         raise (
@@ -40,6 +56,7 @@ def resolve(
     if any(not p.asn or not p.id for p in peers.values()):
         raise NotReady("Rack peer configuration is incomplete")
     sessions = []
+    attached_peers = set()
     serial_producers = {}
     for producer, document in enumerate(attachments):
         # One card can expose multiple PFs. The provider deduplicates those as one card record.
@@ -81,6 +98,9 @@ def resolve(
                 if not re.fullmatch(r"[a-zA-Z0-9_.:-]{1,15}", link.interface):
                     raise InvalidIntent("Unsafe interface name")
                 peer = peers[attachment.chassis_id.lower()]
+                if attachment.chassis_id.lower() in attached_peers:
+                    raise InvalidIntent("Multiple attachments resolve to the same approved TOR")
+                attached_peers.add(attachment.chassis_id.lower())
                 sessions.append(
                     Session(
                         id=attachment.id,
@@ -135,6 +155,7 @@ def resolve(
         hold_time=hold,
         keepalive_time=keepalive,
         contexts=resolve_contexts(config, sessions, advertisements, host.machine_id, imports),
+        domain=config["routing-domain"],
     )
 
 
@@ -218,3 +239,65 @@ def resolve_contexts(config, sessions, advertisements, machine_id, imports):
         c.model_copy(update={"exports": tuple(sorted(grouped[c.id]))})
         for c in sorted(contexts, key=lambda c: c.id)
     )
+
+
+def resolve_domains(uid, inventory, attachments, advertisements, local_links, config, raw):
+    """Resolve domains independently, then enforce host-wide resource separation."""
+    if json.loads(config.get("routing-contexts", "[]")):
+        raise InvalidIntent("Do not combine routing-domains with legacy routing-contexts")
+    domains = sorted((RoutingDomain.model_validate(item) for item in raw), key=lambda d: d.id)
+    ids = [d.id for d in domains]
+    if len(set(ids)) != len(ids) or any(not re.fullmatch(r"[a-zA-Z0-9_-]{1,48}", d) for d in ids):
+        raise InvalidIntent("Routing domain IDs must be unique safe identifiers")
+    if any(not d.contexts or not d.import_prefixes or not d.export_allowlist for d in domains):
+        raise InvalidIntent(
+            "Every routing domain requires contexts, imports and export allowlists"
+        )
+    for index, domain in enumerate(domains):
+        for other in domains[index + 1 :]:
+            if any(a.overlaps(b) for a in domain.import_prefixes for b in other.import_prefixes):
+                raise InvalidIntent("Routing domain destination prefixes must not overlap")
+            if any(a.overlaps(b) for a in domain.export_allowlist for b in other.export_allowlist):
+                raise InvalidIntent("Routing domain export allowlists must not overlap")
+    plans = []
+    for domain in domains:
+        options = config | {
+            "routing-domains": "[]",
+            "routing-domain": domain.id,
+            "routing-contexts": json.dumps([c.model_dump(mode="json") for c in domain.contexts]),
+            "import-prefixes": ",".join(map(str, domain.import_prefixes)),
+            "export-allowlist": ",".join(map(str, domain.export_allowlist)),
+        }
+        for field in (
+            "bfd_min_tx_ms",
+            "bfd_min_rx_ms",
+            "bfd_multiplier",
+            "bgp_hold_time_seconds",
+            "bgp_keepalive_time_seconds",
+        ):
+            if (value := getattr(domain, field)) is not None:
+                options[field.replace("_", "-")] = value
+        plans.append(resolve(uid, inventory, attachments, advertisements, local_links, options))
+    sessions = [s for plan in plans for s in plan.sessions]
+    if len({s.id for s in sessions}) != len(sessions):
+        raise InvalidIntent("Session IDs must be unique across routing domains")
+    if len({s.interface for s in sessions}) != len(sessions):
+        raise InvalidIntent("Routing domains require separate verified attachment interfaces")
+    tables, sources, priorities = set(), set(), set()
+    destination_count = sum(len(p.imports) for p in plans)
+    for plan in plans:
+        for context in plan.contexts:
+            occupied = set(
+                range(
+                    context.rule_priority,
+                    context.rule_priority + len(context.sources) * destination_count,
+                )
+            )
+            if context.table in tables or priorities & occupied or max(occupied) > 32000:
+                raise InvalidIntent("Routing domains conflict in tables or policy priorities")
+            if sources & set(context.sources):
+                raise InvalidIntent("Routing domain source bindings must be unique")
+            tables.add(context.table)
+            sources.update(context.sources)
+            priorities.update(occupied)
+    return MultiDomainPlan(host=plans[0].host, domains=tuple(plans))

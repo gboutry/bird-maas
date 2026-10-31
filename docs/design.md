@@ -95,7 +95,7 @@ context winners in dedicated kernel tables. Local service routes are exported th
 both adjacencies; ingress preference remains a separate TOR policy.
 
 For every configured source /32 and exact approved public import prefix, a rule selects
-that context's table. Rule priorities start at `rule_priority` and consume
+that context's table. In single-domain mode, rule priorities start at `rule_priority` and consume
 `sources × imports` consecutive values. Context IDs, tables, sources and priority ranges
 must be unique. Tables are >=1000, priorities 1000–32000. Public imports cannot be default
 routes or overlapping prefixes. `protected-prefixes` is mandatory and must include the
@@ -132,10 +132,86 @@ failover can temporarily use remote paths; a subsequent reconciliation can repor
 waiting while degraded rather than confirming a new degraded candidate. This is not
 coordinated rollback with TORs or a guarantee of atomic recovery across daemon/host crashes.
 
-BFD timers are application-wide; negotiated behavior is authoritative. 50 ms x3 is
+Legacy BFD timers are application-wide; multiple-domain overrides are described below.
+Negotiated behavior is authoritative. 50 ms x3 is
 nominal detection around 150 ms under symmetric negotiation, not 50 ms service recovery.
 BGP authentication secrets remain mandatory; BFD authentication and network admission
 controls remain deployment requirements.
+
+## Multiple-domain ownership
+
+The optional `routing-domains` JSON array is validated with `RoutingDomain` and
+`ContextIntent`; its schema is `docs/schemas/routing-domains-config.json`. Operator
+configuration rejects unknown fields so a misspelled timer cannot silently select a
+default. Relation records retain their existing additive-field compatibility.
+
+Each domain has an `id`, `import_prefixes`, `export_allowlist`, and `contexts` array.
+Optional `bfd_min_tx_ms`, `bfd_min_rx_ms`, `bfd_multiplier`,
+`bgp_hold_time_seconds`, and `bgp_keepalive_time_seconds` override application defaults.
+The same local ASN/router ID and inventory-approved TOR set apply to each domain.
+Context IDs are scoped to their domain; tables, source bindings, interface ownership,
+session credential IDs and rule priority ranges are host-wide and cannot collide.
+
+All domains resolve before any runtime mutation. Each matches only attachments and
+advertisements bearing its domain ID. Unknown host NUMA locality, an absent host
+context, missing readiness, or invalid domain intent prevents accepting a generation.
+Explicitly withdrawing replication advertisements removes those exports without
+withdrawing public exports. An incomplete snapshot retains the previous generation;
+it is not an authoritative withdrawal.
+
+The wire schemas already carry the required information, so no incompatible relation
+change or new relation endpoint is introduced:
+
+| Interface | Domain information | Scope |
+|---|---|---|
+| `machine-inventory` | Host UUID, MAAS ID, router ID/ASN and approved rack TORs | Shared host identity |
+| `host-attachments` | `cards[].attachments[].domain`, unique session ID, function/VLAN and peer | One domain per approved adjacency |
+| `route-advertisements` | `advertisements[].machine_id`, `domain`, `context`, `prefix`, `ready` | Authorized service source in one domain/context |
+
+The files in `examples/multiple-domains/` show complete provider documents before
+encoding. Each top-level relation field remains JSON-encoded in the Juju databag by
+`maas_bird.interfaces`. MAAS inventory is not copied onto DPUs; they still publish
+observed card identity and attachment data, while host discovery supplies NUMA locality.
+
+### Forwarding and failure isolation
+
+The renderer namespaces all domain-specific tables, direct protocols, pipes and kernel
+protocols, with globally unique BGP protocol numbers. It never pipes routes between
+domains. Exact import filters reject routes offered on the wrong domain session;
+service exports are restricted to that domain's ready local VIPs. There is one Device
+protocol and one BFD instance, with separate interface timer clauses per domain. Multiple
+unrestricted BFD instances would compete for session requests; the shared instance
+avoids that ambiguity. See the [BIRD BFD documentation](https://bird.nic.cz/doc/bird-2.18.html).
+
+For each source VIP, policy rules cover the union of all managed destination prefixes,
+but every rule selects that VIP's own context table. Only its domain's routes are
+installed there. Foreign-domain destinations therefore hit the unreachable default.
+Each source consumes `all managed destinations` priorities, including these cross-domain
+guards; validation reserves the complete range. Unmanaged management destinations do
+not match these rules. Route acceptance also rejects foreign unicast destinations in
+a context table, rather than confirming a potentially leaking candidate.
+
+This is policy separation for configured sources and forwarded destinations, not a
+security boundary between local processes or host-local addresses. The kernel local
+routing table is consulted first. Overlapping networks, VRF provisioning, firewall
+isolation and source enforcement are outside this implementation.
+
+### Transaction boundaries
+
+The ownership journal includes domain IDs and context/table/source assignments. An
+active layout cannot be silently renamed, removed, reassigned or expanded; explicitly
+decommission before changing it. Initial multi-domain installation adds all guards
+before rules, and a known failure rolls back all acknowledged operations across domains.
+An ambiguous operation, foreign replacement or owner mismatch still blocks adoption
+and deletion. Cleanup never flushes a table or removes foreign routes.
+
+One BIRD candidate contains all domains. The parser and native timeout cover the whole
+candidate; the charm confirms only after all expected BGP/BFD sessions and all context
+routes satisfy acceptance. A failed candidate leaves the existing journal and previous
+BIRD generation intact. A timer/preference change can be attempted without changing the
+immutable kernel layout. A domain path failure can use its own remote NUMA backup while
+other domains keep local paths. Host-wide daemon failure or removal of a trusted producer
+is a shared failure domain by design, not an independently restartable per-domain service.
 
 ## 60 racks
 

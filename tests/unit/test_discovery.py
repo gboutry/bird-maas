@@ -3,6 +3,7 @@ from ipaddress import IPv6Address
 
 import pytest
 from maas_bird import discovery
+from maas_bird.discovery import LocalLink
 from maas_bird.models import Identity
 
 
@@ -104,8 +105,6 @@ def test_discovery_errors_do_not_emit_subprocess_output(monkeypatch):
 
 
 def test_unknown_numa_is_explicit_in_local_link():
-    from maas_bird.discovery import LocalLink
-    from maas_bird.models import Identity
 
     link = LocalLink(
         "eth0", Identity(scheme="permanent-mac", value="00:11:22:33:44:55"), 0, 0, None, None, None

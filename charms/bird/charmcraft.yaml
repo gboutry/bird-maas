@@ -23,8 +23,8 @@ parts:
 name: bird
 title: Bird
 summary: Manage unnumbered host BGP and BFD with validated attachment inventory.
-description: Principal machine charm for one host routing domain. Does not provision
-  interfaces, addresses or policy rules.
+description: Principal machine charm owning host BIRD routing domains and explicit
+  source-policy guards. Does not provision interfaces, addresses or TORs.
 requires:
   inventory:
     interface: machine-inventory
@@ -94,3 +94,9 @@ config:
       default: ''
       description: Comma-separated management/replication IPv4 networks. Required
         with NUMA contexts; public destinations must not overlap these.
+    routing-domains:
+      type: string
+      default: '[]'
+      description: JSON array of domain id, import_prefixes, export_allowlist and
+        per-host NUMA contexts. Optional per-domain BGP/BFD timers override global
+        defaults. Nonempty selects multiple-domain mode; do not also set routing-contexts.

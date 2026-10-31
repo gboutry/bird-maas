@@ -2,7 +2,7 @@
 
 import re
 
-from maas_bird.models import Plan
+from maas_bird.models import MultiDomainPlan, Plan
 
 
 def quoted(value: str) -> str:
@@ -11,7 +11,9 @@ def quoted(value: str) -> str:
     return '"' + value.replace("\\", "\\\\").replace('"', '\\"') + '"'
 
 
-def render(plan: Plan, passwords: dict[str, str]) -> str:
+def render(plan: Plan | MultiDomainPlan, passwords: dict[str, str]) -> str:
+    if isinstance(plan, MultiDomainPlan):
+        return render_domains(plan, passwords)
     if plan.contexts:
         return render_contexts(plan, passwords)
     imports = ", ".join(str(p) for p in plan.imports)
@@ -79,7 +81,13 @@ template bgp host_uplink {{
     return text
 
 
-def render_contexts(plan: Plan, passwords: dict[str, str]) -> str:
+def render_contexts(
+    plan: Plan,
+    passwords: dict[str, str],
+    namespace: str = "",
+    offset: int = 0,
+    include_common: bool = True,
+) -> str:
     """Retain every adjacency's routes before making independent context decisions."""
     for session in plan.sessions:
         if not re.fullmatch(r"[a-zA-Z0-9_.:-]{1,15}", session.interface):
@@ -87,40 +95,36 @@ def render_contexts(plan: Plan, passwords: dict[str, str]) -> str:
     exports = ", ".join(str(p) for p in plan.prefixes)
     imports = ", ".join(str(p) for p in plan.imports)
     local_filter = f"if net ~ [ {exports} ] then accept;" if exports else ""
-    text = f"""# Managed NUMA contexts; policy rules and guards are journaled separately.
-router id {plan.host.router_id};
-ipv4 table origins4;
-protocol device devices {{ scan time 1; }}
-protocol direct local_service {{
+    common = f"router id {plan.host.router_id};\nprotocol device devices {{ scan time 1; }};\n"
+    if include_common:
+        common += bfd_config((plan,))
+    text = (
+        (common if include_common else "")
+        + f"""ipv4 table {namespace}origins4;
+protocol direct {namespace}local_service {{
     interface "lo";
-    ipv4 {{ table origins4; import filter {{ {local_filter} reject; }}; }};
-}}
-protocol bfd fabric_bfd {{
-    interface {", ".join(quoted(s.interface) for s in plan.sessions)} {{
-        min tx interval {plan.bfd_tx} ms;
-        min rx interval {plan.bfd_rx} ms;
-        multiplier {plan.bfd_multiplier};
-    }};
+    ipv4 {{ table {namespace}origins4; import filter {{ {local_filter} reject; }}; }};
 }}
 """
+    )
     for c, context in enumerate(plan.contexts):
-        text += f"""ipv4 table context_{c};
-protocol kernel kernel_{c} {{
+        text += f"""ipv4 table {namespace}context_{c};
+protocol kernel {namespace}kernel_{c} {{
     kernel table {context.table};
-    ipv4 {{ table context_{c}; import none;
+    ipv4 {{ table {namespace}context_{c}; import none;
         export filter {{ if source = RTS_BGP then accept; reject; }};
     }};
 }}
 """
-    for n, session in enumerate(plan.sessions):
+    for n, session in enumerate(plan.sessions, start=offset):
         if session.id not in passwords or not passwords[session.id]:
             raise ValueError("Missing session authentication secret")
-        text += f"""ipv4 table path_{n};
-protocol pipe originate_{n} {{
-    table origins4;
-    peer table path_{n};
+        text += f"""ipv4 table {namespace}path_{n};
+protocol pipe {namespace}originate_{n} {{
+    table {namespace}origins4;
+    peer table {namespace}path_{n};
     import none;
-    export filter {{ if proto = "local_service" then accept; reject; }};
+    export filter {{ if proto = "{namespace}local_service" then accept; reject; }};
 }}
 protocol bgp uplink_{n} {{
     local {session.local} as {plan.host.local_asn};
@@ -136,19 +140,19 @@ protocol bgp uplink_{n} {{
     hold time {plan.hold_time};
     keepalive time {plan.keepalive_time};
     graceful restart off;
-    ipv4 {{ table path_{n}; extended next hop on;
+    ipv4 {{ table {namespace}path_{n}; extended next hop on;
         import filter {{ if net ~ [ {imports} ] then accept; reject; }};
         import limit 64 action disable;
-        export filter {{ if proto = "local_service" then accept; reject; }};
+        export filter {{ if proto = "{namespace}local_service" then accept; reject; }};
         export limit {max(1, len(plan.prefixes))} action disable;
     }};
 }}
 """
         for c, context in enumerate(plan.contexts):
             preference = 200 if session.numa_node == context.numa_node else 100
-            text += f"""protocol pipe path_{n}_context_{c} {{
-    table path_{n};
-    peer table context_{c};
+            text += f"""protocol pipe {namespace}path_{n}_context_{c} {{
+    table {namespace}path_{n};
+    peer table {namespace}context_{c};
     import none;
     export filter {{
         if proto = "uplink_{n}" && source = RTS_BGP then {{
@@ -158,4 +162,31 @@ protocol bgp uplink_{n} {{
     }};
 }}
 """
+    return text
+
+
+def bfd_config(domains: tuple[Plan, ...]) -> str:
+    # A BFD instance accepts sessions outside its interface patterns too. Use one
+    # instance with explicit per-domain interface timers, not competing instances.
+    text = "protocol bfd fabric_bfd {\n"
+    for domain in domains:
+        interfaces = ", ".join(quoted(s.interface) for s in domain.sessions)
+        text += f"""    interface {interfaces} {{
+        min tx interval {domain.bfd_tx} ms;
+        min rx interval {domain.bfd_rx} ms;
+        multiplier {domain.bfd_multiplier};
+    }};
+"""
+    return text + "}\n"
+
+
+def render_domains(plan: MultiDomainPlan, passwords: dict[str, str]) -> str:
+    text = f"router id {plan.host.router_id};\nprotocol device devices {{ scan time 1; }};\n"
+    text += bfd_config(plan.domains)
+    offset = 0
+    for index, domain in enumerate(plan.domains):
+        text += render_contexts(
+            domain, passwords, namespace=f"d{index}_", offset=offset, include_common=False
+        )
+        offset += len(domain.sessions)
     return text

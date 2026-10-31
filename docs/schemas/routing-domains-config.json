@@ -1,0 +1,175 @@
+{
+  "$defs": {
+    "ContextIntent": {
+      "additionalProperties": false,
+      "description": "Operator-owned source bindings; workload readiness is supplied separately.",
+      "properties": {
+        "id": {
+          "title": "Id",
+          "type": "string"
+        },
+        "machine_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Machine Id"
+        },
+        "numa_node": {
+          "minimum": 0,
+          "title": "Numa Node",
+          "type": "integer"
+        },
+        "table": {
+          "maximum": 4294967295,
+          "minimum": 1000,
+          "title": "Table",
+          "type": "integer"
+        },
+        "rule_priority": {
+          "maximum": 32000,
+          "minimum": 1000,
+          "title": "Rule Priority",
+          "type": "integer"
+        },
+        "sources": {
+          "items": {
+            "format": "ipv4network",
+            "type": "string"
+          },
+          "title": "Sources",
+          "type": "array"
+        }
+      },
+      "required": [
+        "id",
+        "numa_node",
+        "table",
+        "rule_priority",
+        "sources"
+      ],
+      "title": "ContextIntent",
+      "type": "object"
+    },
+    "RoutingDomain": {
+      "additionalProperties": false,
+      "description": "Operator configuration, distinct from relation snapshots.",
+      "properties": {
+        "id": {
+          "title": "Id",
+          "type": "string"
+        },
+        "import_prefixes": {
+          "items": {
+            "format": "ipv4network",
+            "type": "string"
+          },
+          "title": "Import Prefixes",
+          "type": "array"
+        },
+        "export_allowlist": {
+          "items": {
+            "format": "ipv4network",
+            "type": "string"
+          },
+          "title": "Export Allowlist",
+          "type": "array"
+        },
+        "contexts": {
+          "items": {
+            "$ref": "#/$defs/ContextIntent"
+          },
+          "title": "Contexts",
+          "type": "array"
+        },
+        "bfd_min_tx_ms": {
+          "anyOf": [
+            {
+              "maximum": 60000,
+              "minimum": 50,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Bfd Min Tx Ms"
+        },
+        "bfd_min_rx_ms": {
+          "anyOf": [
+            {
+              "maximum": 60000,
+              "minimum": 50,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Bfd Min Rx Ms"
+        },
+        "bfd_multiplier": {
+          "anyOf": [
+            {
+              "maximum": 255,
+              "minimum": 1,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Bfd Multiplier"
+        },
+        "bgp_hold_time_seconds": {
+          "anyOf": [
+            {
+              "maximum": 65535,
+              "minimum": 3,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Bgp Hold Time Seconds"
+        },
+        "bgp_keepalive_time_seconds": {
+          "anyOf": [
+            {
+              "maximum": 21845,
+              "minimum": 1,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Bgp Keepalive Time Seconds"
+        }
+      },
+      "required": [
+        "id",
+        "import_prefixes",
+        "export_allowlist",
+        "contexts"
+      ],
+      "title": "RoutingDomain",
+      "type": "object"
+    }
+  },
+  "items": {
+    "$ref": "#/$defs/RoutingDomain"
+  },
+  "type": "array"
+}

@@ -7,7 +7,7 @@ from ipaddress import IPv4Interface
 import ops
 from maas_bird import discovery, runtime
 from maas_bird.charm_support import observe, relations, secret_content
-from maas_bird.interfaces import application_data, publish
+from maas_bird.interfaces import application_data, decode, publish
 from maas_bird.models import Advertisements, Attachments, Inventory, InventoryRequest
 from maas_bird.policy import PolicyError
 from maas_bird.render import render
@@ -60,7 +60,6 @@ class BirdCharm(ops.CharmBase):
                             event.relation.id == relation.id and event.departing_unit == unit
                         ):
                             continue
-                        from maas_bird.interfaces import decode
 
                         destination.append(decode(model, relation.data[unit]))
             local_links = discovery.links()
@@ -86,8 +85,6 @@ class BirdCharm(ops.CharmBase):
             for endpoint in ["attachments", "advertisements"]:
                 for relation in relations(self, endpoint, event):
                     for unit in relation.units:
-                        from maas_bird.interfaces import decode
-
                         if endpoint == "attachments":
                             doc = decode(Attachments, relation.data[unit])
                             relevant = any(

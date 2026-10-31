@@ -1,5 +1,6 @@
 """GET-only MAAS client with OAuth1 authentication and verified HTTPS."""
 
+from collections import Counter
 from urllib.parse import urljoin, urlsplit
 
 import requests
@@ -64,7 +65,6 @@ class MaasClient:
 
 def normalize(machines: list[dict], racks: list[dict], identities: list[dict]) -> Inventory:
     """Join explicit allocations and rack policy with allowlisted MAAS fields."""
-    from collections import Counter
 
     allocated = {item["machine_id"]: item for item in identities}
     if len(allocated) != len(identities):

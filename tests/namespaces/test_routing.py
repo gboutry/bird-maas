@@ -8,9 +8,11 @@ import time
 from pathlib import Path
 
 import pytest
+from maas_bird import runtime
 from maas_bird.policy import PolicyError, PolicyRouting
 from maas_bird.render import quoted, render
 from maas_bird.resolver import resolve
+from maas_bird.runtime import accepted
 
 BIRD = Path(os.environ["BIRD_BINARY"]).resolve()
 BIRDC = BIRD.with_name("birdc")
@@ -67,6 +69,7 @@ class Lab:
         subprocess.run(["ip", "link", "set", lname, "netns", left], check=True)
         subprocess.run(["ip", "link", "set", rname, "netns", right], check=True)
         for ns, name in [(left, lname), (right, rname)]:
+            self.ip(ns, "link", "set", "dev", name, "addrgenmode", "none")
             self.ip(ns, "link", "set", name, "up")
             self.ip(ns, "-6", "addr", "flush", "dev", name, "scope", "link")
 
@@ -504,7 +507,6 @@ def test_immutable_layout_and_foreign_replacement_are_protected(lab, numa_inputs
 
 
 def test_runtime_initial_failure_rolls_back_policy(lab, numa_inputs, monkeypatch):
-    from maas_bird import runtime
 
     plan = prepare_plan(numa_inputs, 50)
     baseline = snapshot(lab)
@@ -581,3 +583,283 @@ def test_reconciliation_detects_new_overlapping_foreign_policy(lab, numa_inputs)
     with pytest.raises(PolicyError, match="overlaps"):
         policy.ensure(plan)
     assert snapshot(lab) == foreign
+
+
+def prepare_domains(lab, domain_inputs):
+    """Add a second L2 adjacency on each synthetic TOR; no IPv4 transit addresses."""
+    lab.names.append("mb-rdst")
+    subprocess.run(["ip", "netns", "add", "mb-rdst"], check=True)
+    lab.created.append("mb-rdst")
+    lab.ip("mb-rdst", "link", "set", "lo", "up")
+    for key in ["all", "default"]:
+        lab.ns("mb-rdst", ["sysctl", "-q", "-w", f"net.ipv4.conf.{key}.rp_filter=0"])
+    for n in range(2):
+        lab.link("mb-host", f"replica{n + 1}", f"mb-tor{n}", f"repup{n}")
+        lab.ip("mb-host", "-6", "addr", "add", "fe80::11/64", "dev", f"replica{n + 1}", "nodad")
+        lab.ip(f"mb-tor{n}", "-6", "addr", "add", "fe80::1/64", "dev", f"repup{n}", "nodad")
+        lab.link(f"mb-tor{n}", f"rdown{n}", "mb-rdst", f"recv{n}")
+        lab.ip(f"mb-tor{n}", "addr", "add", f"192.0.{n + 4}.1/30", "dev", f"rdown{n}")
+        lab.ip("mb-rdst", "addr", "add", f"192.0.{n + 4}.2/30", "dev", f"recv{n}")
+        lab.ip(f"mb-tor{n}", "route", "add", "198.51.100.0/24", "via", f"192.0.{n + 4}.2")
+        lab.ip("mb-host", "addr", "add", f"172.22.0.{11 + n}/32", "dev", "lo")
+    lab.ip("mb-rdst", "addr", "add", "198.51.100.9/32", "dev", "lo")
+    lab.ip("mb-mgmt", "addr", "add", "198.51.100.9/32", "dev", "lo")
+    log = lab.directory / "mb-rdst.jsonl"
+    lab.processes.append(
+        subprocess.Popen(
+            ["ip", "netns", "exec", "mb-rdst", sys.executable, "-u", "-c", SINK, str(log)],
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.PIPE,
+        )
+    )
+    wait(log.exists, "Replica receiver did not start")
+    return resolve(**domain_inputs)
+
+
+def start_domains(lab, plan):
+    lab.bird("mb-host", render(plan, {s.id: "example" for s in plan.sessions}), "host")
+    for n in range(2):
+        config = f"""router id 10.255.0.{n + 1};
+log stderr all;
+protocol device {{}}
+protocol kernel main_kernel {{ learn; ipv4 {{ import all; export all; }}; }}
+protocol bfd fabric {{
+ interface "up{n}" {{ min tx interval 50 ms; min rx interval 50 ms; multiplier 3; }};
+ interface "repup{n}" {{ min tx interval 300 ms; min rx interval 300 ms; multiplier 3; }};
+}}
+"""
+        for name, interface in [("public", f"up{n}"), ("replica", f"repup{n}")]:
+            # Deliberately offer BOTH domains' routes on each session. Host filters
+            # must reject the foreign domain even when the trusted TOR offers it.
+            config += f"""protocol bgp {name} {{
+ local fe80::1 as {65011 + n}; neighbor fe80::11%{interface} as 4200001011;
+ interface "{interface}"; direct; strict bind yes; bfd yes; password "example";
+ connect retry time 2; error wait time 1, 5; hold time 9; keepalive time 3;
+ ipv4 {{ extended next hop on; import all;
+  export filter {{ if net ~ [203.0.113.0/24,198.51.100.0/24] then accept; reject; }}; }};
+}}
+"""
+        lab.bird(f"mb-tor{n}", config, f"tor{n}")
+
+
+def domain_dev(lab, source, destination):
+    result = lab.ns(
+        "mb-host", ["ip", "-j", "route", "get", destination, "from", source], check=False
+    )
+    return json.loads(result.stdout)[0].get("dev") if result.returncode == 0 else None
+
+
+def replica_fault(lab, n, enabled):
+    name = f"mb-tor{n}"
+    if not enabled:
+        lab.ns(name, ["nft", "delete", "table", "inet", "replica_fault"])
+        return
+    lab.ns(name, ["nft", "add", "table", "inet", "replica_fault"])
+    lab.ns(
+        name,
+        [
+            "nft",
+            "add",
+            "chain",
+            "inet",
+            "replica_fault",
+            "ingress",
+            "{ type filter hook prerouting priority -300; policy accept; }",
+        ],
+    )
+    lab.ns(
+        name,
+        ["nft", "add", "rule", "inet", "replica_fault", "ingress", "iifname", f"repup{n}", "drop"],
+    )
+
+
+def blocked_datagram(lab, source, destination):
+    result = lab.ns(
+        "mb-host",
+        [
+            sys.executable,
+            "-c",
+            "import socket,sys;"
+            "s=socket.socket(socket.AF_INET,socket.SOCK_DGRAM);s.bind((sys.argv[1],0));"
+            "s.sendto(b'must-not-leak',(sys.argv[2],19001))",
+            source,
+            destination,
+        ],
+        check=False,
+    )
+    assert result.returncode != 0
+
+
+def test_public_replica_domains_forward_fail_over_and_never_leak(lab, domain_inputs):
+
+    plan = prepare_domains(lab, domain_inputs)
+    baseline = snapshot(lab)
+    policy = PolicyRouting(lab.directory / "policy", "multi-owner", lab.run)
+    policy.ensure(plan)
+    start_domains(lab, plan)
+    wait(
+        lambda: policy.verify_routes(plan), "Independent public/replica contexts did not establish"
+    )
+    assert accepted(
+        lab.cli("host", "show", "protocols", "all"), lab.cli("host", "show", "bfd", "sessions"), 4
+    )
+    bfd = lab.cli("host", "show", "bfd", "sessions")
+    (lab.directory / "bfd-sessions.txt").write_text(bfd)
+    timers = {
+        row[1]: (float(row[-2]), float(row[-1]))
+        for line in bfd.splitlines()
+        if (row := line.split()) and row[0].startswith("fe80:")
+    }
+    assert timers == {
+        "fabric1": (0.05, 0.15),
+        "fabric2": (0.05, 0.15),
+        "replica1": (0.3, 0.9),
+        "replica2": (0.3, 0.9),
+    }
+    for n in range(2):
+        public, replica = f"10.60.11.{11 + n}", f"172.22.0.{11 + n}"
+        lab.send(public, "203.0.113.9", "mb-dst", f"recv{n}")
+        lab.send(replica, "198.51.100.9", "mb-rdst", f"recv{n}")
+        blocked_datagram(lab, public, "198.51.100.9")
+        blocked_datagram(lab, replica, "203.0.113.9")
+        for index in range(2):
+            public_routes = lab.cli("host", "show", "route", "table", f"d0_path_{index}", "all")
+            replica_routes = lab.cli(
+                "host", "show", "route", "table", f"d1_path_{index + 2}", "all"
+            )
+            assert "198.51.100.0/24" not in public_routes
+            assert "203.0.113.0/24" not in replica_routes
+    # Verify exported VIPs are separated too, despite one common TOR routing table.
+    for session, forbidden in [("public", "172.22.0."), ("replica", "10.60.11.")]:
+        routes = lab.cli("tor0", "show", "route", "protocol", session, "all")
+        assert forbidden not in routes
+    lab.fault(0, True)
+    wait(
+        lambda: domain_dev(lab, "10.60.11.11", "203.0.113.9") == "fabric2",
+        "Public BFD failover failed",
+    )
+    lab.send("10.60.11.11", "203.0.113.9", "mb-dst", "recv1")
+    lab.send("172.22.0.11", "198.51.100.9", "mb-rdst", "recv0")
+    lab.fault(1, True)
+    wait(
+        lambda: domain_dev(lab, "10.60.11.11", "203.0.113.9") is None,
+        "Public traffic leaked through main",
+    )
+    blocked_datagram(lab, "10.60.11.11", "203.0.113.9")
+    lab.send("172.22.0.12", "198.51.100.9", "mb-rdst", "recv1")
+    for n in range(2):
+        lab.fault(n, False)
+    wait(lambda: policy.verify_routes(plan), "Public recovery failed")
+    replica_fault(lab, 0, True)
+    wait(
+        lambda: domain_dev(lab, "172.22.0.11", "198.51.100.9") == "replica2",
+        "Replica BFD failover failed",
+    )
+    lab.send("172.22.0.11", "198.51.100.9", "mb-rdst", "recv1")
+    replica_fault(lab, 1, True)
+    wait(
+        lambda: domain_dev(lab, "172.22.0.11", "198.51.100.9") is None,
+        "Replica traffic leaked through main",
+    )
+    blocked_datagram(lab, "172.22.0.11", "198.51.100.9")
+    lab.send("10.60.11.11", "203.0.113.9", "mb-dst", "recv0")
+    lab.send("10.60.11.11", "172.20.0.2", "mb-mgmt", "managed")
+    lab.send("172.22.0.11", "172.21.0.2", "mb-mgmt", "managed")
+    for n in range(2):
+        replica_fault(lab, n, False)
+    wait(lambda: policy.verify_routes(plan), "Replica recovery failed")
+    # A foreign cross-domain route must prevent confirmation of a new candidate.
+    lab.ip(
+        "mb-host",
+        "route",
+        "add",
+        "198.51.100.0/24",
+        "dev",
+        "management",
+        "table",
+        "3100",
+        "proto",
+        "197",
+    )
+    assert not policy.verify_routes(plan)
+    lab.ip(
+        "mb-host",
+        "route",
+        "del",
+        "198.51.100.0/24",
+        "dev",
+        "management",
+        "table",
+        "3100",
+        "proto",
+        "197",
+    )
+    for process in lab.processes:
+        process.terminate()
+        process.wait(timeout=5)
+    policy.remove()
+    assert snapshot(lab) == baseline
+
+
+def test_multiple_domain_policy_rolls_back_whole_install(lab, domain_inputs):
+    plan = prepare_domains(lab, domain_inputs)
+    baseline = snapshot(lab)
+    (lab.directory / "baseline.json").write_text(json.dumps(baseline))
+    count = 0
+
+    def fail_replica_rule(args):
+        nonlocal count
+        if "add" in args:
+            count += 1
+            if count == 10:
+                raise RuntimeError("injected replica-domain rule failure")
+        return lab.run(args)
+
+    policy = PolicyRouting(lab.directory / "policy", "multi-owner", fail_replica_rule)
+    with pytest.raises(RuntimeError, match="replica-domain"):
+        policy.ensure(plan)
+    (lab.directory / "after-failure.json").write_text(json.dumps(snapshot(lab)))
+    assert snapshot(lab) == baseline
+    assert not policy.path.exists()
+    policy.execute = lab.run
+    policy.ensure(plan)
+    before = snapshot(lab)
+    renamed = plan.model_copy(
+        update={
+            "domains": (plan.domains[0], plan.domains[1].model_copy(update={"domain": "renamed"}))
+        }
+    )
+    with pytest.raises(PolicyError, match="immutable"):
+        policy.ensure(renamed)
+    assert snapshot(lab) == before
+    policy.remove()
+    assert snapshot(lab) == baseline
+
+
+def test_unconfirmed_replica_candidate_rolls_back_all_domains(lab, domain_inputs):
+    plan = prepare_domains(lab, domain_inputs)
+    policy = PolicyRouting(lab.directory / "policy", "multi-owner", lab.run)
+    policy.ensure(plan)
+    start_domains(lab, plan)
+    wait(lambda: policy.verify_routes(plan), "Multi-domain routes did not establish")
+    journal = policy.path.read_bytes()
+    rules = snapshot(lab)[0]
+    replica = plan.domains[1]
+    swapped = replica.model_copy(
+        update={
+            "contexts": tuple(
+                c.model_copy(update={"numa_node": 1 - c.numa_node}) for c in replica.contexts
+            )
+        }
+    )
+    candidate_plan = plan.model_copy(update={"domains": (plan.domains[0], swapped)})
+    candidate = lab.directory / "unconfirmed-domains.conf"
+    candidate.write_text(render(candidate_plan, {s.id: "example" for s in plan.sessions}))
+    lab.cli("host", "configure", quoted(str(candidate)), "timeout", "3")
+    wait(lambda: policy.verify_routes(candidate_plan), "Replica candidate did not install", 2)
+    lab.send("10.60.11.11", "203.0.113.9", "mb-dst", "recv0")
+    lab.send("172.22.0.11", "198.51.100.9", "mb-rdst", "recv1")
+    wait(lambda: policy.verify_routes(plan), "Timed rollback did not restore both domains", 8)
+    assert snapshot(lab)[0] == rules
+    assert policy.path.read_bytes() == journal
+    lab.send("172.22.0.11", "198.51.100.9", "mb-rdst", "recv0")

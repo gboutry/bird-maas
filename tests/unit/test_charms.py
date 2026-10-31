@@ -1,3 +1,4 @@
+import json
 from unittest.mock import Mock
 
 from maas_bird import discovery
@@ -203,3 +204,43 @@ def test_bird_numa_context_event_uses_policy_runtime(numa_inputs, charm_context,
     assert out.unit_status == testing.ActiveStatus("2 BGP sessions established")
     service.apply.assert_not_called()
     assert [c.table for c in service.apply_contexts.call_args.args[1].contexts] == [3100, 3101]
+
+
+def test_bird_multiple_domains_use_one_host_runtime(domain_inputs, charm_context, monkeypatch):
+    monkeypatch.setattr("maas_bird.discovery.host_uuid", lambda: "host-uuid")
+    monkeypatch.setattr("maas_bird.discovery.links", lambda: domain_inputs["local_links"])
+    addresses = [
+        str(a.prefix.network_address) for a in domain_inputs["advertisements"][0].advertisements
+    ]
+
+    monkeypatch.setattr(
+        "maas_bird.discovery.command",
+        lambda _: json.dumps(
+            [{"addr_info": [{"local": address, "prefixlen": 32} for address in addresses]}]
+        ),
+    )
+    service = Mock()
+    monkeypatch.setattr("maas_bird.runtime.BirdService", lambda **kwargs: service)
+    ctx = charm_context("bird")
+    inv = testing.Relation("inventory", remote_app_data=encode(domain_inputs["inventory"]))
+    attachments = testing.Relation(
+        "attachments",
+        remote_units_data={n: encode(doc) for n, doc in enumerate(domain_inputs["attachments"])},
+    )
+    ads = testing.Relation(
+        "advertisements", remote_units_data={0: encode(domain_inputs["advertisements"][0])}
+    )
+    secret = testing.Secret(
+        {"path1": "one", "path2": "two", "replica-path1": "three", "replica-path2": "four"}
+    )
+    config = domain_inputs["config"] | {"enabled": True, "bgp-credentials": secret.id}
+    out = ctx.run(
+        ctx.on.config_changed(),
+        testing.State(config=config, secrets={secret}, relations={inv, attachments, ads}),
+    )
+    assert out.unit_status == testing.ActiveStatus("4 BGP sessions established")
+    service.apply.assert_not_called()
+    service.apply_contexts.assert_called_once()
+    plan = service.apply_contexts.call_args.args[1]
+    assert [domain.domain for domain in plan.domains] == ["storage-public", "storage-replica"]
+    assert len(plan.contexts) == 4

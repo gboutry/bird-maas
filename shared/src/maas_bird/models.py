@@ -103,8 +103,10 @@ class Session(Record):
     numa_node: int | None = None
 
 
-class RoutingContext(Record):
-    """Validated internal plan; not a relation payload."""
+class ContextIntent(Record):
+    """Operator-owned source bindings; workload readiness is supplied separately."""
+
+    model_config = ConfigDict(extra="forbid", frozen=True)
 
     id: str
     machine_id: str | None = None
@@ -112,6 +114,13 @@ class RoutingContext(Record):
     table: Annotated[int, Field(strict=True, ge=1000, le=4294967295)]
     rule_priority: Annotated[int, Field(strict=True, ge=1000, le=32000)]
     sources: tuple[IPv4Network, ...]
+
+
+class RoutingContext(ContextIntent):
+    """Validated internal plan; not a relation payload."""
+
+    model_config = Record.model_config
+
     exports: tuple[IPv4Network, ...] = ()
 
 
@@ -127,3 +136,41 @@ class Plan(Record):
     hold_time: int
     keepalive_time: int
     contexts: tuple[RoutingContext, ...] = ()
+    domain: str = ""
+
+
+class RoutingDomain(Record):
+    """Operator configuration, distinct from relation snapshots."""
+
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    id: str
+    import_prefixes: tuple[IPv4Network, ...]
+    export_allowlist: tuple[IPv4Network, ...]
+    contexts: tuple[ContextIntent, ...]
+    bfd_min_tx_ms: Annotated[int, Field(strict=True, ge=50, le=60000)] | None = None
+    bfd_min_rx_ms: Annotated[int, Field(strict=True, ge=50, le=60000)] | None = None
+    bfd_multiplier: Annotated[int, Field(strict=True, ge=1, le=255)] | None = None
+    bgp_hold_time_seconds: Annotated[int, Field(strict=True, ge=3, le=65535)] | None = None
+    bgp_keepalive_time_seconds: Annotated[int, Field(strict=True, ge=1, le=21845)] | None = None
+
+
+class MultiDomainPlan(Record):
+    host: Host
+    domains: tuple[Plan, ...]
+
+    @property
+    def sessions(self):
+        return tuple(session for domain in self.domains for session in domain.sessions)
+
+    @property
+    def contexts(self):
+        return tuple(context for domain in self.domains for context in domain.contexts)
+
+    @property
+    def prefixes(self):
+        return tuple(prefix for domain in self.domains for prefix in domain.prefixes)
+
+
+def routing_plans(plan: Plan | MultiDomainPlan) -> tuple[Plan, ...]:
+    return plan.domains if isinstance(plan, MultiDomainPlan) else (plan,)

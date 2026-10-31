@@ -10,7 +10,7 @@ import os
 from ipaddress import IPv4Network
 from pathlib import Path
 
-from maas_bird.models import Plan
+from maas_bird.models import MultiDomainPlan, Plan, routing_plans
 
 PROTOCOL = 196
 GUARD_METRIC = 42760
@@ -20,12 +20,13 @@ class PolicyError(RuntimeError):
     pass
 
 
-def layout(plan: Plan) -> dict:
+def layout(plan: Plan | MultiDomainPlan) -> dict:
     rules = []
+    destinations = sorted({p for domain in routing_plans(plan) for p in domain.imports})
     for context in plan.contexts:
         offset = 0
         for source in sorted(context.sources):
-            for destination in sorted(plan.imports):
+            for destination in destinations:
                 rules.append(
                     {
                         "src": str(source),
@@ -36,10 +37,23 @@ def layout(plan: Plan) -> dict:
                     }
                 )
                 offset += 1
-    return {
+    result = {
         "tables": sorted(c.table for c in plan.contexts),
         "rules": sorted(rules, key=lambda rule: rule["priority"]),
     }
+    if isinstance(plan, MultiDomainPlan):
+        result["domains"] = [
+            {
+                "id": domain.domain,
+                "contexts": [
+                    {"id": c.id, "table": c.table, "sources": list(map(str, sorted(c.sources)))}
+                    for c in domain.contexts
+                ],
+                "imports": list(map(str, sorted(domain.imports))),
+            }
+            for domain in plan.domains
+        ]
+    return result
 
 
 def rule_network(rule: dict, field: str):
@@ -199,9 +213,9 @@ class PolicyRouting:
                 src.overlaps(IPv4Network(r["src"])) and dst.overlaps(IPv4Network(r["dst"]))
                 for r in desired["rules"]
             ):
-                raise PolicyError("A foreign policy rule overlaps the requested public traffic")
+                raise PolicyError("A foreign policy rule overlaps the requested managed traffic")
 
-    def ensure(self, plan: Plan):
+    def ensure(self, plan: Plan | MultiDomainPlan):
         desired = layout(plan)
         rules, routes = self._snapshot()
         if self.path.exists():
@@ -274,21 +288,28 @@ class PolicyRouting:
             self._save(state)
         self.path.unlink()
 
-    def verify_routes(self, plan: Plan):
+    def verify_routes(self, plan: Plan | MultiDomainPlan):
         """Acceptance requires each destination to use a verified NUMA-local attachment."""
-        for context in plan.contexts:
-            routes = json.loads(
-                self.execute(
-                    ["ip", "-j", "-N", "route", "show", "table", str(context.table)]
-                ).stdout
-            )
-            local = {s.interface for s in plan.sessions if s.numa_node == context.numa_node}
-            for destination in plan.imports:
-                if not any(
-                    route.get("dst") == str(destination)
-                    and route.get("dev") in local
-                    and str(route.get("type", "unicast")) in {"unicast", "1"}
+        for domain in routing_plans(plan):
+            for context in domain.contexts:
+                routes = json.loads(
+                    self.execute(
+                        ["ip", "-j", "-N", "route", "show", "table", str(context.table)]
+                    ).stdout
+                )
+                if isinstance(plan, MultiDomainPlan) and any(
+                    str(route.get("type", "unicast")) in {"unicast", "1"}
+                    and route.get("dst") not in {str(prefix) for prefix in domain.imports}
                     for route in routes
                 ):
                     return False
+                local = {s.interface for s in domain.sessions if s.numa_node == context.numa_node}
+                for destination in domain.imports:
+                    if not any(
+                        route.get("dst") == str(destination)
+                        and route.get("dev") in local
+                        and str(route.get("type", "unicast")) in {"unicast", "1"}
+                        for route in routes
+                    ):
+                        return False
         return True

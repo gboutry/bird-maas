@@ -2,6 +2,7 @@ import dataclasses
 import json
 
 import pytest
+from maas_bird.models import Advertisements
 from maas_bird.render import render
 from maas_bird.resolver import InvalidIntent, NotReady, resolve
 
@@ -61,7 +62,6 @@ def test_unassigned_host_does_not_fall_back_to_legacy_mode(numa_inputs):
 
 
 def test_advertisement_must_name_context(numa_inputs):
-    from maas_bird.models import Advertisements
 
     doc = numa_inputs["advertisements"][0].model_dump()
     doc["advertisements"][0]["context"] = None

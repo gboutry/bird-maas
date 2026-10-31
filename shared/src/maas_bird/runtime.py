@@ -1,7 +1,7 @@
 """Owned BIRD service with native parse checks and confirmed reconfiguration.
 
 The host network owner supplies addresses and interfaces. Opt-in NUMA contexts own
-only journaled public policy rules and guards. Dedicated tables must be unused.
+only journaled managed-domain policy rules and guards. Dedicated tables must be unused.
 """
 
 import fcntl
@@ -14,7 +14,9 @@ import subprocess
 import time
 from pathlib import Path
 
-from maas_bird.models import Plan
+from charmlibs import apt
+
+from maas_bird.models import MultiDomainPlan, Plan
 from maas_bird.policy import PolicyRouting
 from maas_bird.render import quoted
 
@@ -68,8 +70,6 @@ class BirdService:
         if any(str(route.get("table")) in {str(t) for t in tables} for route in routes):
             raise RuntimeErrorBase("Dedicated kernel table is already populated")
         if not shutil.which("bird"):
-            from charmlibs import apt
-
             apt.add_package("bird2", update_cache=True)
             # Only a package installed by this invocation may have its vendor service stopped.
             run(["systemctl", "disable", "--now", "bird.service"])
@@ -142,7 +142,7 @@ WantedBy=multi-user.target
         finally:
             candidate.unlink(missing_ok=True)
 
-    def apply_contexts(self, contents: str, plan: Plan):
+    def apply_contexts(self, contents: str, plan: Plan | MultiDomainPlan):
         tables = tuple(sorted(c.table for c in plan.contexts))
         self._prepare(tables)
         lock = self.directory / "context.lock"

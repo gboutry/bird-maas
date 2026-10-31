@@ -1,5 +1,7 @@
 """Read-only attachment provider. Configuration declares intent; observations validate it."""
 
+import json
+
 from maas_bird import discovery
 from maas_bird.models import Attachment, Attachments, Card, Function
 
@@ -41,7 +43,6 @@ def observe(configured: list[dict]) -> Attachments:
                 ).strip()
                 trunks = discovery.command(["ovs-vsctl", "get", "Port", representor, "trunks"])
                 # Require explicit VLAN membership; do not assume an empty trunk list means safe.
-                import json
 
                 ready = bridge == uplink_bridge and item["vlan"] in json.loads(trunks)
         attachment = Attachment(

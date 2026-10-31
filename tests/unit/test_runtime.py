@@ -3,6 +3,7 @@ from unittest.mock import Mock
 
 import pytest
 from maas_bird import runtime
+from maas_bird.resolver import resolve
 
 
 def protocols(extended=True, established=True):
@@ -153,7 +154,6 @@ def test_pipe_up_does_not_hide_a_down_bgp_ipv4_channel():
 def test_initial_context_failure_stops_service_before_policy_rollback(
     tmp_path, numa_inputs, monkeypatch
 ):
-    from maas_bird.resolver import resolve
 
     plan = resolve(**numa_inputs)
     service = runtime.BirdService(tmp_path)

@@ -11,7 +11,8 @@ import time
 from pathlib import Path
 
 import pytest
-from maas_bird.render import render
+from maas_bird import runtime
+from maas_bird.render import quoted, render
 from maas_bird.resolver import resolve
 
 BIRD = Path(os.environ["BIRD_BINARY"]).resolve()
@@ -110,8 +111,6 @@ protocol bgp uplink {{
 
 
 def test_native_configuration_timeout_restores_previous_generation(tmp_path, monkeypatch):
-    from maas_bird import runtime
-    from maas_bird.render import quoted
 
     first = tmp_path / "first.conf"
     second = tmp_path / "second.conf"
@@ -147,3 +146,10 @@ def test_native_configuration_timeout_restores_previous_generation(tmp_path, mon
     finally:
         process.terminate()
         process.communicate(timeout=5)
+
+
+def test_multiple_domain_parser(domain_inputs, tmp_path):
+    plan = resolve(**domain_inputs)
+    config = tmp_path / "domains.conf"
+    config.write_text(render(plan, {s.id: "example" for s in plan.sessions}))
+    subprocess.run([str(BIRD), "-p", "-c", str(config)], check=True, capture_output=True)
