@@ -29,13 +29,17 @@ shared library is not a registered public Charmhub interface. Schemas are
 exported directly from the models under `docs/schemas/`; additive unknown fields
 are ignored, while invalid known fields reject the snapshot.
 
-| Endpoint | Writer | Fields and meaning |
-|---|---|---|
-| `machine-inventory`, consumer app | BIRD leader | `rack`: immutable rack request |
-| `machine-inventory`, consumer unit | Each BIRD unit | `system_uuid`: observed local DMI UUID |
-| `machine-inventory`, provider app | Inventory leader | `rack`, `hosts`: selected MAAS identities, ASNs, router IDs and approved TORs |
-| `host-attachments`, provider unit | Each DPU unit | `rack`, `cards`: card identity and attachment observations |
-| `route-advertisements`, provider unit | Workload owner | `rack`, `machine_id`, `domain`, `advertisements`: complete readiness snapshot for that host/domain |
+| Endpoint | Interface | Writer | Fields and meaning |
+|---|---|---|---|
+| `inventory` | `machine-inventory` | BIRD leader (consumer app) | `rack`: immutable rack request |
+| `inventory` | `machine-inventory` | Each BIRD unit (consumer unit) | `system_uuid`: observed local DMI UUID |
+| `inventory` | `machine-inventory` | Inventory leader (provider app) | `rack`, `hosts`: selected MAAS identities, ASNs, router IDs and approved TORs |
+| `attachments` | `host-attachments` | Each attachment-provider unit | `rack`, `cards`: card identity and attachment observations |
+| `advertisements` | `route-advertisements` | Workload owner (provider unit) | `rack`, `machine_id`, `domain`, `advertisements`: complete readiness snapshot for that host/domain |
+
+Endpoint names are the names used in `juju integrate`; interface names identify
+the relation contract. For example, integrate `maas-inventory:inventory` with
+`bird-rack-a:inventory`.
 
 A host record contains `machine_id`, `system_uuid`, `rack`, `local_asn`,
 `router_id`, and peers with `id`, `chassis_id`, `asn`. The inventory app joins
@@ -70,7 +74,10 @@ remain the upper bound on their grants.
 
 `routing-domains` is the only supported BIRD configuration model. Each domain has
 approved imports/exports and host-bound contexts. Every context names a MAAS
-machine, NUMA cell, dedicated table, reserved source-rule priority and /32 VIPs.
+machine, NUMA cell, dedicated table, reserved source-rule priority range and /32 VIPs. Each
+context reserves one consecutive priority per source, beginning at
+`rule_priority`; the range must not collide with another context or exceed
+32000.
 VIP allocations cannot overlap between hosts or domains. Management prefixes
 cannot be imported or used as managed source bindings.
 

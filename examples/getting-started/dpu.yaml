@@ -1,0 +1,82 @@
+# EXAMPLE ONLY: replace identities, placements, addresses and secret IDs.
+dpu-rack-a:
+  rack: a
+  attachments: |
+    [
+      {
+        "serial": "REPLACE-CARD-NUMA0",
+        "id": "host-a-ceph-public-tor1",
+        "function": {
+          "controller": 1,
+          "pf": 0,
+          "vf": 60
+        },
+        "host_function": {
+          "controller": 0,
+          "pf": 0,
+          "vf": 60
+        },
+        "domain": "ceph-public",
+        "vlan": 3500,
+        "uplink": "REPLACE-UPLINK-TOR1",
+        "chassis_id": "02:00:00:01:00:01",
+        "peer_link_local": "fe80::1"
+      },
+      {
+        "serial": "REPLACE-CARD-NUMA0",
+        "id": "host-a-ceph-replication-tor1",
+        "function": {
+          "controller": 1,
+          "pf": 0,
+          "vf": 61
+        },
+        "host_function": {
+          "controller": 0,
+          "pf": 0,
+          "vf": 61
+        },
+        "domain": "ceph-replication",
+        "vlan": 3510,
+        "uplink": "REPLACE-UPLINK-TOR1",
+        "chassis_id": "02:00:00:01:00:01",
+        "peer_link_local": "fe80::1"
+      },
+      {
+        "serial": "REPLACE-CARD-NUMA1",
+        "id": "host-a-ceph-public-tor2",
+        "function": {
+          "controller": 1,
+          "pf": 0,
+          "vf": 60
+        },
+        "host_function": {
+          "controller": 0,
+          "pf": 0,
+          "vf": 60
+        },
+        "domain": "ceph-public",
+        "vlan": 3501,
+        "uplink": "REPLACE-UPLINK-TOR2",
+        "chassis_id": "02:00:00:01:00:02",
+        "peer_link_local": "fe80::1"
+      },
+      {
+        "serial": "REPLACE-CARD-NUMA1",
+        "id": "host-a-ceph-replication-tor2",
+        "function": {
+          "controller": 1,
+          "pf": 0,
+          "vf": 61
+        },
+        "host_function": {
+          "controller": 0,
+          "pf": 0,
+          "vf": 61
+        },
+        "domain": "ceph-replication",
+        "vlan": 3511,
+        "uplink": "REPLACE-UPLINK-TOR2",
+        "chassis_id": "02:00:00:01:00:02",
+        "peer_link_local": "fe80::1"
+      }
+    ]

@@ -1,4 +1,7 @@
 # Illustrative existing Juju machines only; replace every placement and identity.
+# No workload publisher is included: integrate a real advertisements provider
+# before enabling routing. Keep enabled=false until all prerequisites are met.
+# Select the DPU artifact matching its OS architecture (arm64 for ARM cards).
 applications:
   bird-a:
     charm: ../../charms/bird/bird_amd64.charm

@@ -1,0 +1,30 @@
+# EXAMPLE ONLY: replace identities, placements, addresses and secret IDs.
+maas-inventory:
+  maas-url: https://maas.example/MAAS/
+  maas-credentials: secret:REPLACE-MAAS
+  rack-profiles: |
+    [
+      {
+        "id": "a",
+        "peers": [
+          {
+            "id": "tor1",
+            "chassis_id": "02:00:00:01:00:01",
+            "asn": 65010
+          },
+          {
+            "id": "tor2",
+            "chassis_id": "02:00:00:01:00:02",
+            "asn": 65011
+          }
+        ]
+      }
+    ]
+  host-identities: |
+    [
+      {
+        "machine_id": "example-host-a",
+        "local_asn": 4200000101,
+        "router_id": "10.255.1.11"
+      }
+    ]

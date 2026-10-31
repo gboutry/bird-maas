@@ -53,10 +53,17 @@ established physical TOR peers.
 - Idle/load CPU and repeated packet-outage measurements for each supported BFD
   setting; avoid claiming nominal detection time as measured failover time.
 - 60-rack Juju controller/event capacity and upgrade/recovery tests.
-- ARM acceptance beyond the identity observer: its native emulated build, ELF
+- ARM acceptance beyond the identity observer: its ARM build in an emulated builder, ELF
   checks and actual hooks on six physical DPUs pass. BIRD and MAAS adapter ARM
   workloads have not been exercised on physical ARM targets.
 
-The local tests did not touch N5 or the TORs. A subsequent explicitly authorized
+The local tests did not touch the pilot site's production hosts or TORs.
+A subsequent explicitly authorized
 three-node disabled pilot is recorded in [live acceptance](live-acceptance-20261031.md);
 it made no existing BIRD or forwarding changes.
+
+For the later inventory activation and exact saved configuration, see the dated
+[offline handoff](operator-handoff-20261031.md). That checkpoint records working
+inventory delivery with charm-managed routing still disabled; it is not positive
+physical BGP/failover acceptance. Historical snapshots are evidence for their
+recorded revision/time, not a substitute for checking a new deployment.

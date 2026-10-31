@@ -1,0 +1,76 @@
+# EXAMPLE ONLY: replace identities, placements, addresses and secret IDs.
+bird-rack-a:
+  rack: a
+  enabled: false
+  bgp-credentials: ''
+  protected-prefixes: 192.0.2.0/24
+  bfd-min-tx-ms: 300
+  bfd-min-rx-ms: 300
+  bfd-multiplier: 3
+  bgp-hold-time-seconds: 9
+  bgp-keepalive-time-seconds: 3
+  routing-domains: |
+    [
+      {
+        "id": "ceph-public",
+        "import_prefixes": [
+          "10.60.1.0/24"
+        ],
+        "export_allowlist": [
+          "10.60.1.0/24"
+        ],
+        "contexts": [
+          {
+            "id": "numa0",
+            "machine_id": "example-host-a",
+            "numa_node": 0,
+            "table": 3100,
+            "rule_priority": 10000,
+            "sources": [
+              "10.60.1.11/32"
+            ]
+          },
+          {
+            "id": "numa1",
+            "machine_id": "example-host-a",
+            "numa_node": 1,
+            "table": 3101,
+            "rule_priority": 10100,
+            "sources": [
+              "10.60.1.12/32"
+            ]
+          }
+        ]
+      },
+      {
+        "id": "ceph-replication",
+        "import_prefixes": [
+          "10.61.1.0/24"
+        ],
+        "export_allowlist": [
+          "10.61.1.0/24"
+        ],
+        "contexts": [
+          {
+            "id": "numa0",
+            "machine_id": "example-host-a",
+            "numa_node": 0,
+            "table": 3200,
+            "rule_priority": 10200,
+            "sources": [
+              "10.61.1.11/32"
+            ]
+          },
+          {
+            "id": "numa1",
+            "machine_id": "example-host-a",
+            "numa_node": 1,
+            "table": 3201,
+            "rule_priority": 10300,
+            "sources": [
+              "10.61.1.12/32"
+            ]
+          }
+        ]
+      }
+    ]

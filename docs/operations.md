@@ -1,10 +1,14 @@
 # Operations and migration
 
+For a first deployment, follow [Getting started](getting-started.md). This
+runbook covers operation of the resulting host policy and routing service.
+
 ## Admission
 
 1. Allocate unique machine/ASN/router IDs in `maas-inventory`, with exactly one
    approved rack tag per MAAS machine. Grant the MAAS credential secret only to
-   the inventory app. Optional private CA trust uses a `ca-cert` Juju secret;
+   the inventory app. The `maas-credentials` option references a secret with an `api-key` field.
+   Optional `maas-ca-certificate` references a secret with a `ca-cert` PEM field;
    TLS verification cannot be disabled.
 2. Deploy BIRD on each existing host and DPU observers on each existing card,
    using rack-specific applications and explicit Juju placements. Integrate
@@ -78,3 +82,17 @@ Juju 3.6.29 CLI, `juju run` returned exit status zero even when the task status 
 `plan` action, not a successful plan merely because the CLI exited zero.
 `reconcile` also reports the workload status explicitly; a completed action does
 not mean the unit is Active or that routing is enabled.
+
+## Planning multiple racks
+
+For 60 racks of 40 hosts, the intended topology is one inventory application,
+60 BIRD applications and up to 60 DPU-observer applications. Each BIRD application
+has 40 units. DPU unit counts depend on cards per host; workloads have their own
+publisher units. Relation fan-out stays within a rack, but all units and events
+still consume controller capacity. JSON relation fields have a 48 KiB limit;
+measure actual rack inventory/attachment payload sizes before rollout.
+
+Use the host/network source of truth to generate and review allocations. Start
+with one host, then expand by rack with measured hook latency, controller load
+and recovery behavior. Existing 60-by-40 content/property checks do not establish
+controller capacity, event latency or convergence at that deployment scale.
