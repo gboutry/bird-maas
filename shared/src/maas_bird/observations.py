@@ -13,12 +13,14 @@ from maas_bird.models import Advertisements, Attachments, Card, RackHeader
 from maas_bird.rack import advertisements_for_host, attachments_for_host
 
 
-def collect(charm, event, rack, machine_id, identities, previous):
+def collect(charm, event, rack, machine_id, identities, previous, *, workload_mode=True):
     cache = dict(previous)
     documents = {"attachments": [], "advertisements": []}
     live = set()
     warnings = []
     for endpoint in documents:
+        if endpoint == "advertisements" and not workload_mode:
+            continue
         for relation in relations(charm, endpoint, event):
             for unit in sorted(relation.units, key=lambda u: u.name):
                 if isinstance(event, ops.RelationDepartedEvent) and (
@@ -68,7 +70,7 @@ def collect(charm, event, rack, machine_id, identities, previous):
     # Keep tombstone snapshots for a removed workload's domain in THIS compile.
     # They revoke its old exports even when all publisher units have departed.
     for key, raw in previous.items():
-        if key not in live and key.startswith("advertisements:"):
+        if workload_mode and key not in live and key.startswith("advertisements:"):
             documents["advertisements"].append(
                 Advertisements.model_validate(raw).model_copy(update={"advertisements": ()})
             )

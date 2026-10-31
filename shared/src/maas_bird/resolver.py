@@ -16,6 +16,7 @@ from maas_bird.models import (
     RoutingContext,
     RoutingDomain,
     Session,
+    advertisement_mode,
 )
 
 
@@ -32,6 +33,7 @@ class AuthorizationWithdrawn(InvalidIntent):
 
 
 def resolve_rack(uid, inventory, attachments, advertisements, local_links, config):
+    mode = advertisement_mode(config)
     if inventory.rack != config["rack"]:
         raise InvalidIntent("Inventory relation does not match this application's rack")
     host, peers = _resolve_host(uid, inventory)
@@ -64,7 +66,9 @@ def resolve_rack(uid, inventory, attachments, advertisements, local_links, confi
     ):
         raise InvalidIntent("A rack source VIP cannot be allocated to multiple hosts")
     plans = tuple(
-        _domain(host, peers, domain, protected, attachments, advertisements, local_links, config)
+        _domain(
+            host, peers, domain, protected, attachments, advertisements, local_links, config, mode
+        )
         for domain in domains
     )
     for domain in domains:
@@ -84,10 +88,10 @@ def resolve_rack(uid, inventory, attachments, advertisements, local_links, confi
         ):
             raise InvalidIntent("Routing domain export allowlists overlap")
     _separation(plans)
-    return MultiDomainPlan(host=host, domains=plans)
+    return MultiDomainPlan(host=host, domains=plans, advertisement_mode=mode)
 
 
-def _domain(host, peers, domain, protected, attachments, advertisements, links, config):
+def _domain(host, peers, domain, protected, attachments, advertisements, links, config, mode):
     if not domain.contexts or not domain.import_prefixes or not domain.export_allowlist:
         raise InvalidIntent("Every domain needs contexts, imports and export allowlists")
     imports = domain.import_prefixes
@@ -100,7 +104,7 @@ def _domain(host, peers, domain, protected, attachments, advertisements, links, 
             _resolve_domain_sessions(attachments, links, peers, domain, host), key=lambda s: s.id
         )
     )
-    contexts = _contexts(domain, host, sessions, advertisements)
+    contexts = _contexts(domain, host, sessions, advertisements, mode)
     tx, rx, mult, hold, keepalive = _timers(domain, config)
     return Plan(
         host=host,
@@ -118,7 +122,7 @@ def _domain(host, peers, domain, protected, attachments, advertisements, links, 
     )
 
 
-def _contexts(domain, host, sessions, documents):
+def _contexts(domain, host, sessions, documents, mode):
     selected = [c for c in domain.contexts if c.machine_id in (None, host.machine_id)]
     if not selected:
         raise NotReady("Waiting for this host's routing contexts")
@@ -139,8 +143,27 @@ def _contexts(domain, host, sessions, documents):
             raise NotReady("NUMA locality is unknown for a host attachment")
         if not any(s.numa_node == context.numa_node for s in paths):
             raise InvalidIntent("Every context requires a verified NUMA-local attachment")
+    exports = _context_exports(domain, host, selected, documents, mode)
+    return tuple(
+        RoutingContext(**c.model_dump(), exports=tuple(sorted(exports[c.id])))
+        for c in sorted(selected, key=lambda c: c.id)
+    )
+
+
+def _context_exports(domain, host, selected, documents, mode):
+    """Node origins are explicit address intent, never synthetic workload health.
+
+    The charm still checks every /32 on lo and the runtime validates persistent
+    source policy before any origin is activated. Workload mode retains the
+    existing producer-controlled authorization boundary.
+    """
     by_id = {c.id: c for c in selected}
     exports = {c.id: set() for c in selected}
+    if mode == "node-addresses":
+        return {
+            c.id: {p for p in c.sources if any(p.subnet_of(a) for a in domain.export_allowlist)}
+            for c in selected
+        }
     for document in documents:
         if document.machine_id != host.machine_id or document.domain != domain.id:
             continue
@@ -151,10 +174,7 @@ def _contexts(domain, host, sessions, documents):
                 raise InvalidIntent("Advertisement does not match its declared source context")
             if ad.ready and any(ad.prefix.subnet_of(p) for p in domain.export_allowlist):
                 exports[ad.context].add(ad.prefix)
-    return tuple(
-        RoutingContext(**c.model_dump(), exports=tuple(sorted(exports[c.id])))
-        for c in sorted(selected, key=lambda c: c.id)
-    )
+    return exports
 
 
 def _timers(domain, config):

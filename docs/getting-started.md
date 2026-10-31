@@ -3,7 +3,9 @@
 Start with one host and two top-of-rack (TOR) switches. Keep the pilot separate
 from production service addresses and retain out-of-band access. The steps below
 explain what each owner must prepare before the charm can route traffic.
-They do not provision a fabric or supply a missing workload integration.
+They do not provision a fabric or supply a missing workload integration. This
+walkthrough uses the default workload mode. For node-owned transport addresses,
+see the explicit [node-address mode](node-addresses.md) and its native checks.
 
 The example uses a two-NUMA-node host and two routing domains named
 `ceph-public` and `ceph-replication`. These are policy names; another workload
@@ -20,7 +22,7 @@ can use the same model if it supplies the required readiness relation.
 | Switches | The unnumbered BGP/BFD capabilities and explicit routing policy described below. |
 | Host networking owner | Persistent VLANs/interfaces, IPv6 link-local addresses, /32 service addresses, source rules and guard routes; workload boot ordering behind that policy. |
 | Attachment provider | Trusted observations joining each local NIC/function/VLAN to an approved TOR. The supplied DPU observer needs compatible devlink, OVS and LLDP state. |
-| Workload publisher | A real `route-advertisements` provider that checks readiness and withdraws addresses when they are no longer ready. No Ceph adapter is shipped here. |
+| Workload publisher (default mode) | A real `route-advertisements` provider that checks readiness and withdraws addresses when they are no longer ready. No Ceph adapter is shipped here. |
 
 **An ordinary NIC does not require a DPU.** Host discovery supports permanent
 port MACs as an identity fallback. However, this repository does not supply an

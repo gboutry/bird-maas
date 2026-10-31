@@ -35,7 +35,7 @@ requires:
     optional: false
   advertisements:
     interface: route-advertisements
-    optional: false
+    optional: true
 config:
   options:
     rack:
@@ -46,6 +46,14 @@ config:
       type: boolean
       description: Explicitly enable package installation and owned routing service.
       default: false
+    advertisement-mode:
+      type: string
+      default: workload
+      description: >-
+        Origin authority: workload requires route-advertisements publishers;
+        node-addresses explicitly authorizes configured node-owned /32s after
+        native loopback address and persistent source-policy validation.
+        Node mode does not check Ceph, API or OVN service health.
     bgp-credentials:
       type: string
       description: Juju secret ID containing session-id to BGP password entries.

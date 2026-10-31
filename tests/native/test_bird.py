@@ -323,9 +323,13 @@ def test_supported_rack_configuration_native_parser(tmp_path, mode):
     subprocess.run([str(BIRD), "-p", "-c", str(path)], check=True, capture_output=True)
 
 
+@pytest.mark.parametrize("mode", ["workload", "node-addresses"])
 @pytest.mark.parametrize("interval", [50, 300])
-def test_ten_dedicated_vfs_and_neutral_context_parse_with_native_bird(tmp_path, interval):
+def test_ten_dedicated_vfs_and_neutral_context_parse_with_native_bird(tmp_path, interval, mode):
     inputs = ten_vf_inputs()
+    inputs["config"]["advertisement-mode"] = mode
+    if mode == "node-addresses":
+        inputs["advertisements"] = []
     inputs["config"].update({"bfd-min-tx-ms": interval, "bfd-min-rx-ms": interval})
     plan = resolve_rack(**inputs)
     assert len(plan.sessions) == 10

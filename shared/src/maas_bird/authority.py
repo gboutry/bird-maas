@@ -13,6 +13,7 @@ from maas_bird.models import (
     Inventory,
     MultiDomainPlan,
     RoutingDomain,
+    advertisement_mode,
     sessions_for_context,
 )
 from maas_bird.resolver import AuthorizationWithdrawn
@@ -26,6 +27,7 @@ def restrict(
     passwords=None,
     attachments=(),
 ):
+    mode = advertisement_mode(config)
     host = previous.host
     if inventory.hosts is not None:
         matches = [h for h in inventory.hosts if h.system_uuid == host.system_uuid]
@@ -70,10 +72,14 @@ def restrict(
         prefixes = {
             p for p in old.prefixes if p in sources and any(p.subnet_of(a) for a in allowed)
         }
-        for doc in documents:
-            if doc.domain == old.domain and doc.advertisements is not None:
-                ready = {ad.prefix for ad in doc.advertisements if ad.ready is True}
-                prefixes &= ready
+        if mode != previous.advertisement_mode:
+            # Changing the authority owner is a grant, not a stale undo target.
+            prefixes.clear()
+        elif mode == "workload":
+            for doc in documents:
+                if doc.domain == old.domain and doc.advertisements is not None:
+                    ready = {ad.prefix for ad in doc.advertisements if ad.ready is True}
+                    prefixes &= ready
         imports = tuple(
             p
             for p in old.imports
@@ -112,7 +118,7 @@ def restrict(
                 }
             )
         )
-    return MultiDomainPlan(host=previous.host, domains=tuple(restricted))
+    return MultiDomainPlan(host=previous.host, domains=tuple(restricted), advertisement_mode=mode)
 
 
 def snapshots_for_resolution(documents: list[Advertisements]):

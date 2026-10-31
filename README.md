@@ -12,15 +12,17 @@ on its own NUMA node while retaining a remote path for failure recovery.
 
 **Status:** under validation, not a production release. The repository includes
 three charms and their shared Python library. You must supply persistent host
-networking, switch configuration and a workload-readiness integration before
-routing can be enabled. Start with [deployment prerequisites](docs/getting-started.md#before-you-start).
+networking and switch configuration before routing can be enabled. The default
+workload mode also requires a readiness publisher. Explicit
+[node-address mode](docs/node-addresses.md) routes assigned node /32s without
+claiming service health. Start with [deployment prerequisites](docs/getting-started.md#before-you-start).
 
 ## What runs where
 
 | Charm | Placement | Responsibility |
 |---|---|---|
 | `maas-inventory` | One application for the deployment | Read MAAS over HTTPS and publish each rack's machine identities and approved switches. Keep the MAAS credential in this application. |
-| `bird` | One application per rack, one unit on each participating host | Validate the host's inputs, manage its BIRD daemon, and advertise approved addresses when the workload reports them ready. |
+| `bird` | One application per rack, one unit on each participating host | Validate the host's inputs, manage its BIRD daemon, and advertise approved addresses using workload readiness or explicit node-address authority. |
 | `dpu-attachments` | Where DPUs are used: one application per rack, one unit per card | Observe card identity, host-function mapping, VLAN membership and LLDP neighbors. Publish attachment observations to BIRD. |
 
 All three are **principal machine charms**: place them explicitly on existing
@@ -52,7 +54,8 @@ That is an integration boundary, not a claim that every switch or NIC has been
 validated. The supplied attachment provider uses DPU devlink, OVS and LLDP
 observations. Ordinary NICs have a permanent-MAC identity discovery path, but
 still need a compatible attachment provider; an ordinary-NIC provider is not
-included. A Ceph readiness adapter is not included either.
+included. A Ceph readiness adapter is not included either; node-address mode can instead
+route explicitly assigned transport addresses independently of OSD health.
 
 The design keeps BIRD and attachment relations within a rack. It describes a
 60-rack topology, but controller capacity and convergence at that scale still
@@ -92,6 +95,8 @@ hardware forwarding counters during normal operation and failover.
 
 - [Getting started](docs/getting-started.md): prerequisites, example configuration
   and the path to a first pilot.
+- [Node-owned addresses](docs/node-addresses.md): explicit address advertisement
+  without claiming workload health.
 - [Dedicated VF paths](docs/dedicated-paths.md): separate Ceph VIP pairs and an
   explicitly NUMA-neutral context.
 - [Operations and migration](docs/operations.md): health, updates, withdrawal and

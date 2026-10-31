@@ -1,7 +1,7 @@
 """Versioned interface contracts; absence parses, completeness is checked separately."""
 
 from ipaddress import IPv4Address, IPv4Network, IPv6Address
-from typing import Annotated
+from typing import Annotated, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
@@ -183,6 +183,7 @@ class RoutingDomain(Record):
 
 
 class MultiDomainPlan(Record):
+    advertisement_mode: Literal["workload", "node-addresses"] = "workload"
     host: Host
     domains: tuple[Plan, ...]
 
@@ -215,3 +216,13 @@ def sessions_for_context(plan: Plan, context: RoutingContext) -> tuple[Session, 
         for session in plan.sessions
         if context.attachment_ids is None or session.id in context.attachment_ids
     )
+
+
+def advertisement_mode(config):
+    """Only an explicit operator choice may replace workload origin authority."""
+    value = config.get("advertisement-mode", "workload")
+    if value == "workload":
+        return "workload"
+    if value == "node-addresses":
+        return "node-addresses"
+    raise ValueError("advertisement-mode must be workload or node-addresses")

@@ -8,7 +8,7 @@ import ops
 from maas_bird import authority, discovery, external_policy
 from maas_bird.charm_support import observe, relations, secret_content
 from maas_bird.interfaces import application_data, publish
-from maas_bird.models import Inventory, InventoryRequest, RackRequest
+from maas_bird.models import Inventory, InventoryRequest, RackRequest, advertisement_mode
 from maas_bird.observations import collect
 from maas_bird.rack import ScopeError, rack_id
 from maas_bird.rack_runtime import RackService
@@ -79,6 +79,7 @@ class BirdCharm(ops.CharmBase):
             hosts[0].machine_id,
             identities,
             dict(self._state.observations) or self._service().observations(),
+            workload_mode=advertisement_mode(self.config) == "workload",
         )
         inputs = dict(
             uid=uid,
@@ -135,6 +136,8 @@ class BirdCharm(ops.CharmBase):
             message = (
                 f"Rack {plan.host.rack}: {health['established']}/{health['configured']} BGP/BFD Up"
             )
+            if plan.advertisement_mode == "node-addresses":
+                message += "; node addresses, service health not checked"
             degraded = (
                 health["established"] != health["configured"]
                 or health["missing_routes"]

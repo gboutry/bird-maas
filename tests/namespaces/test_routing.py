@@ -923,6 +923,19 @@ def test_tos_foreign_guard_is_rejected_without_partial_cleanup(lab, numa_inputs)
     assert snapshot(lab) == before
 
 
+def established_bgp_socket_ids(lab, namespace):
+    """Native TCP identity is stable across BIRD's wall-time formatting changes."""
+    result = lab.ns(namespace, ["ss", "-H", "-tnpe", "state", "established"])
+    rows = [line for line in result.stdout.splitlines() if re.search(r":179\b", line)]
+    ids = []
+    for line in rows:
+        matched = re.findall(r"\bino:(\d+)\b", line)
+        assert len(matched) == 1, line
+        ids.append(int(matched[0]))
+    assert len(ids) == len(set(ids))
+    return set(ids)
+
+
 @pytest.mark.parametrize("interval", [50, 300])
 def test_rack_withdrawal_under_silent_failure_preserves_surviving_sessions(
     lab, domain_inputs, monkeypatch, interval
@@ -1049,7 +1062,9 @@ def test_rack_withdrawal_under_silent_failure_preserves_surviving_sessions(
         if re.match(r"(?:public|replica)\s+BGP", line)
     ]
     assert len(before) == 2 and all("Established" in line for line in before)
-    time.sleep(1.2)  # Native state timestamps have one-second resolution.
+    before_connections = established_bgp_socket_ids(lab, "mb-tor1")
+    assert len(before_connections) == 2
+    time.sleep(1.2)  # Retain a nonzero interval before the actual withdrawal.
     documents = [
         doc.model_copy(
             update={
@@ -1075,7 +1090,9 @@ def test_rack_withdrawal_under_silent_failure_preserves_surviving_sessions(
         for line in lab.cli("tor1", "show", "protocols", "all").splitlines()
         if re.match(r"(?:public|replica)\s+BGP", line)
     ]
-    assert before == after
+    assert len(after) == 2 and all("Established" in line for line in after)
+    assert [line.split()[:4] for line in before] == [line.split()[:4] for line in after]
+    assert established_bgp_socket_ids(lab, "mb-tor1") == before_connections
     assert stop == []
     assert "10.60.11.11" in lab.ip("mb-host", "-4", "addr", "show", "lo").stdout
     lab.send("10.60.11.12", "203.0.113.9", "mb-dst", "recv1")
@@ -1083,8 +1100,9 @@ def test_rack_withdrawal_under_silent_failure_preserves_surviving_sessions(
     lab.send("172.20.0.1", "172.21.0.2", "mb-mgmt", "managed")
 
 
+@pytest.mark.parametrize("mode", ["workload", "node-addresses"])
 @pytest.mark.parametrize("interval", [50, 300])
-def test_ten_dedicated_vf_paths_and_neutral_general_failover(lab, interval):
+def test_ten_dedicated_vf_paths_and_neutral_general_failover(lab, interval, mode):
     """Real packets must not borrow another Ceph context's still-healthy VF pair.
 
     The synthetic fabric deliberately offers every domain on every BGP session.
@@ -1093,6 +1111,9 @@ def test_ten_dedicated_vf_paths_and_neutral_general_failover(lab, interval):
     NUMA preference. This is Linux/BIRD acceptance, not a physical offload test.
     """
     inputs = ten_vf_inputs()
+    inputs["config"]["advertisement-mode"] = mode
+    if mode == "node-addresses":
+        inputs["advertisements"] = []
     policies = json.loads(inputs["config"]["routing-domains"])
     for policy in policies:
         policy.update(bfd_min_tx_ms=interval, bfd_min_rx_ms=interval)
