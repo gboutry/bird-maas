@@ -2,6 +2,7 @@
 
 import json
 from collections.abc import Mapping
+from typing import Any
 
 import ops
 
@@ -48,7 +49,7 @@ def secret_content(charm, option):
     return charm.model.get_secret(id=sid).get_content(refresh=True)
 
 
-def json_list(value: str, option: str) -> list[dict]:
+def json_list(value: str, option: str) -> list[dict[str, Any]]:
     result = json.loads(value)
     if not isinstance(result, list) or any(not isinstance(item, dict) for item in result):
         raise ValueError(f"{option} must be a JSON array of objects")

@@ -19,6 +19,7 @@ from maas_bird.runtime import write_atomic
 
 class MaasInventoryCharm(ops.CharmBase):
     _state = ops.StoredState()
+    _configuration_error: bool = False
 
     def __init__(self, framework):
         super().__init__(framework)
@@ -41,7 +42,6 @@ class MaasInventoryCharm(ops.CharmBase):
         active = list(relations(self, "inventory", event))
         claims = {relation.id: self._unit_requests(relation, event) for relation in active}
         try:
-            self._configuration_error = False
             force = self._needs_scope_refresh(active, claims)
             machines, available = self._machines(None if force else event)
             racks = json_list(config_string(self.config, "rack-profiles"), "rack-profiles")
@@ -158,6 +158,7 @@ class MaasInventoryCharm(ops.CharmBase):
         return result
 
     def _machines(self, event):
+        self._configuration_error = False
         self._fresh_snapshot = False
         interval = self.config["inventory-cache-seconds"]
         if not isinstance(interval, int) or not 30 <= interval <= 3600:

@@ -1,6 +1,7 @@
 """GET-only MAAS client with OAuth1 authentication and verified HTTPS."""
 
 from collections import Counter
+from typing import Any
 from urllib.parse import urljoin, urlsplit
 
 import requests
@@ -102,9 +103,9 @@ class MaasClient:
         parsed = urlsplit(url)
         if (
             parsed.scheme != "https"
-            or not parsed.hostname
-            or parsed.username
-            or parsed.password
+            or not bool(parsed.hostname)
+            or bool(parsed.username)
+            or bool(parsed.password)
             or parsed.query
             or parsed.fragment
         ):
@@ -125,7 +126,7 @@ class MaasClient:
             signature_method="PLAINTEXT",
         )
 
-    def machines(self) -> list[dict]:
+    def machines(self) -> list[dict[str, Any]]:
         try:
             # No redirects: do not forward OAuth credentials to an unexpected origin.
             response = requests.get(
@@ -147,7 +148,9 @@ class MaasClient:
         return result
 
 
-def normalize(machines: list[dict], racks: list[dict], identities: list[dict]) -> Inventory:
+def normalize(
+    machines: list[dict[str, Any]], racks: list[dict[str, Any]], identities: list[dict[str, Any]]
+) -> Inventory:
     """Join explicit allocations and rack policy with allowlisted MAAS fields."""
 
     allocated = {item["machine_id"]: item for item in identities}
@@ -177,7 +180,9 @@ def normalize(machines: list[dict], racks: list[dict], identities: list[dict]) -
         if not uid:
             raise ValueError("Allocated machine has no hardware UUID")
         peers = tuple(Peer.model_validate(item) for item in rack_by_id[rack_ids[0]]["peers"])
-        if not peers or any(not p.id or not p.asn or not p.chassis_id for p in peers):
+        if not peers or any(
+            not bool(p.id) or not bool(p.asn) or not bool(p.chassis_id) for p in peers
+        ):
             raise ValueError("Rack peers are incomplete")
         hosts.append(
             Host(

@@ -1,12 +1,13 @@
 """Read-only attachment provider. Configuration declares intent; observations validate it."""
 
 import json
+from typing import Any
 
 from maas_bird import discovery, ovsdb
 from maas_bird.models import Attachment, Attachments, Card, Function, OvsPort
 
 
-def observe(configured: list[dict]) -> Attachments:
+def observe(configured: list[dict[str, Any]]) -> Attachments:
     serials = discovery.cards()
     ports, neighbors = discovery.dpu_observations()
     ovs_state = (

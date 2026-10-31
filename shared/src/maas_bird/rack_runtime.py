@@ -15,6 +15,7 @@ import time
 import uuid
 from ipaddress import IPv4Interface
 from pathlib import Path
+from typing import override
 
 from charmlibs import apt
 
@@ -195,7 +196,7 @@ class RackService(OwnedBird):
             self._check_unclaimed_network(plan)
         if (self.directory / "policy.json").exists():
             raise MigrationRequired("Decommission the prototype's owned policy before migration")
-        if not shutil.which("bird"):
+        if not bool(shutil.which("bird")):
             if (self.root / "etc/bird").exists():
                 raise RuntimeErrorBase(
                     "Inspect existing vendor configuration before installing bird2"
@@ -525,6 +526,7 @@ class RackService(OwnedBird):
             time.sleep(0.2)
         raise SessionsPending("Waiting for the intended BIRD generation, not for every peer")
 
+    @override
     def invalidate(self):
         """Durably deny restart before attempting to stop a running daemon."""
         if not self.marker.exists() or self.marker.read_text() != self.owner + "\n":

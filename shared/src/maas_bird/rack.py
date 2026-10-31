@@ -28,7 +28,7 @@ def advertisements_for_host(bag: MutableMapping[str, str], rack: str, machine_id
     if _header(bag, "rack") != rack or _header(bag, "machine_id") != machine_id:
         return None
     document = decode(Advertisements, bag)
-    if not document.domain:
+    if not bool(document.domain):
         raise ScopeError("Workload snapshot must identify one routing domain")
     if any(
         a.machine_id != machine_id or a.domain != document.domain
@@ -69,11 +69,11 @@ def attachments_for_host(bag: MutableMapping[str, str], identities: set[Identity
         if card.identity not in identities or card.attachments is None:
             continue
         if any(
-            not attachment.id
-            or not attachment.domain
+            not bool(attachment.id)
+            or not bool(attachment.domain)
             or not _complete_attachment_backend(attachment)
             or attachment.vlan is None
-            or not attachment.chassis_id
+            or not bool(attachment.chassis_id)
             or attachment.peer_link_local is None
             or attachment.ready is None
             for attachment in card.attachments

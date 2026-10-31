@@ -3,7 +3,7 @@
 import hashlib
 import re
 
-from maas_bird.models import MultiDomainPlan, sessions_for_context
+from maas_bird.models import MultiDomainPlan, Plan, Session, sessions_for_context
 
 
 def quoted(value: str) -> str:
@@ -46,7 +46,7 @@ def render_rack(plan: MultiDomainPlan, passwords: dict[str, str]) -> str:
     return text
 
 
-def _domain(domain, passwords):
+def _domain(domain: Plan, passwords: dict[str, str]) -> str:
     namespace = f"d_{_tag(domain.domain)}_"
     text = f"ipv4 table {namespace}origins4;\n"
     # A route has its own stable origin protocol. Withdrawing a VIP removes only
@@ -69,13 +69,13 @@ protocol kernel {namespace}kernel_{tag} {{
 }}
 """
     for session in domain.sessions:
-        if not passwords.get(session.id):
+        if not bool(passwords.get(session.id)):
             raise ValueError("Missing session authentication secret")
         text += _session(domain, session, passwords[session.id], namespace)
     return text
 
 
-def _session(domain, session, password, namespace):
+def _session(domain: Plan, session: Session, password: str, namespace: str) -> str:
     if not re.fullmatch(r"[a-zA-Z0-9_.:-]{1,15}", session.interface):
         raise ValueError("Unsafe interface name")
     tag = _tag(session.id)

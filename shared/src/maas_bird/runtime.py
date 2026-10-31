@@ -15,7 +15,7 @@ class SessionsPending(RuntimeErrorBase):
     pass
 
 
-def run(args: list[str], check: bool = True) -> subprocess.CompletedProcess:
+def run(args: list[str], check: bool = True) -> subprocess.CompletedProcess[str]:
     try:
         result = subprocess.run(args, capture_output=True, text=True, timeout=30, check=False)
     except (OSError, subprocess.SubprocessError) as exc:

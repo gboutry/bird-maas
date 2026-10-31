@@ -63,7 +63,7 @@ def resolve_rack(uid, inventory, attachments, advertisements, local_links, confi
     if not protected:
         raise InvalidIntent("Declare protected management prefixes")
     contexts = [context for domain in domains for context in domain.contexts]
-    if any(not context.machine_id for context in contexts):
+    if any(not bool(context.machine_id) for context in contexts):
         raise InvalidIntent("Bind every context explicitly to a MAAS machine ID")
     allocated = [
         (source, context.machine_id) for context in contexts for source in context.sources
@@ -247,12 +247,17 @@ def _resolve_host(uid: str, inventory: Inventory) -> tuple[Host, dict[str, Peer]
         )
     host = hosts[0]
     host_peers = host.peers
-    if not host.machine_id or not host.local_asn or not host.router_id or not host_peers:
+    if (
+        not bool(host.machine_id)
+        or not bool(host.local_asn)
+        or not host.router_id
+        or not bool(host_peers)
+    ):
         raise NotReady("Host routing identity is incomplete")
-    peers = {p.chassis_id.lower(): p for p in host_peers if p.chassis_id}
+    peers = {p.chassis_id.lower(): p for p in host_peers if bool(p.chassis_id)}
     if len(peers) != len(host_peers):
         raise InvalidIntent("Rack peer identities are missing or duplicated")
-    if any(not p.asn or not p.id for p in peers.values()):
+    if any(not bool(p.asn) or not bool(p.id) for p in peers.values()):
         raise NotReady("Rack peer configuration is incomplete")
     return host, peers
 
@@ -312,7 +317,7 @@ def _resolve_sessions(
         # One card can expose multiple PFs. The provider deduplicates those as one card record.
         for card in document.cards or ():
             identity = card.identity
-            if not identity or not identity.scheme or not identity.value:
+            if not identity or not bool(identity.scheme) or not bool(identity.value):
                 continue
             candidates = [link for link in local_links if link.identity == identity]
             if not candidates:
@@ -345,7 +350,7 @@ def _resolve_attachment(
         raise InvalidIntent("Attachment mixes physical and logical selectors")
     if attachment.ovs_port is None and (not f or f.controller is None or f.pf is None):
         raise NotReady("Attachment function coordinates are incomplete")
-    if not attachment.chassis_id or attachment.chassis_id.lower() not in peers:
+    if not bool(attachment.chassis_id) or attachment.chassis_id.lower() not in peers:
         raise InvalidIntent("Local attachment reaches an unapproved TOR")
     if attachment.ovs_port is not None:
         if not attachment.ovs_port.complete or attachment.ovs_port.vlan != attachment.vlan:
@@ -367,7 +372,7 @@ def _resolve_attachment(
             else (InvalidIntent("Attachment matches multiple local interfaces"))
         )
     link = matches[0]
-    if not link.link_local or not attachment.peer_link_local or not attachment.id:
+    if not link.link_local or not attachment.peer_link_local or not bool(attachment.id):
         raise NotReady("Attachment has no usable IPv6 link-local adjacency")
     if not re.fullmatch(r"[a-zA-Z0-9_.:-]{1,15}", link.interface):
         raise InvalidIntent("Unsafe interface name")

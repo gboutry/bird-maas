@@ -6,6 +6,7 @@ import subprocess
 from dataclasses import dataclass
 from ipaddress import IPv6Address
 from pathlib import Path
+from typing import Any, cast
 
 from maas_bird import ovsdb
 from maas_bird.models import Identity, OvsPort
@@ -144,7 +145,7 @@ def links(root: Path = Path("/sys")) -> list[LocalLink]:
     return result
 
 
-def dpu_observations() -> tuple[dict, dict]:
+def dpu_observations() -> tuple[dict[str, Any], dict[str, Any]]:
     """Collect standard devlink port metadata and LLDP; never modify OVS or the switch."""
     ports = json.loads(command(["devlink", "-j", "port", "show"]))
     neighbors = json.loads(command(["lldpcli", "-f", "json", "show", "neighbors"]))
@@ -250,19 +251,21 @@ def ovs_uplink_bridge(
         bridge_uuid, _ = ovsdb.uplink_binding(
             state, interface, identity.value, native, root, bond=bond
         )
-        return next(row["name"] for row in state["Bridge"] if row["_uuid"] == bridge_uuid)
+        return cast(
+            str, next(row["name"] for row in state["Bridge"] if row["_uuid"] == bridge_uuid)
+        )
     except ovsdb.TopologyError:
         return None
     except OSError as exc:
         raise DiscoveryError("Cannot validate kernel LACP uplink membership") from exc
 
 
-def lldp_chassis(neighbors: dict, interface: str) -> set[str]:
+def lldp_chassis(neighbors: dict[str, Any], interface: str) -> set[str]:
     """lldpd JSON may encode its interface collection as a dict or a list of dicts."""
     rows = neighbors.get("lldp", {}).get("interface", [])
     if isinstance(rows, dict):
         rows = [rows]
-    found = set()
+    found: set[str] = set()
     for row in rows:
         value = row.get(interface)
         if not value:

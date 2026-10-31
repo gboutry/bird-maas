@@ -69,7 +69,7 @@ class BirdCharm(ops.CharmBase):
             hosts=(document.host,)
             if document.host
             else ()
-            if document.rack and document.system_uuid
+            if bool(document.rack) and bool(document.system_uuid)
             else None,
         )
         if inventory.rack is None:

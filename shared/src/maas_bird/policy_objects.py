@@ -1,6 +1,7 @@
 """Exact IPv4 policy object identities; no host mutations or dependencies."""
 
 from ipaddress import IPv4Network
+from typing import Any
 
 PROTOCOL = 196
 GUARD_METRIC = 42760
@@ -10,7 +11,7 @@ class PolicyError(RuntimeError):
     pass
 
 
-def rule_network(rule: dict, field: str):
+def rule_network(rule: dict[str, Any], field: str):
     value = rule.get(field, "all")
     if value == "all":
         return IPv4Network("0.0.0.0/0")
@@ -20,7 +21,7 @@ def rule_network(rule: dict, field: str):
     return IPv4Network(value)
 
 
-def rule_key(rule: dict):
+def rule_key(rule: dict[str, Any]):
     if set(rule) - {
         "src",
         "srclen",
@@ -44,7 +45,7 @@ def rule_key(rule: dict):
         return None
 
 
-def guard_key(route: dict):
+def guard_key(route: dict[str, Any]):
     """Recognize the whole catch-all identity, never a restricted foreign route."""
     if set(route) - {"type", "dst", "table", "protocol", "metric", "flags", "scope", "tos"}:
         return None

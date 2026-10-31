@@ -7,6 +7,7 @@ imports or adjacencies from the last accepted plan before topology resolution.
 
 import json
 from ipaddress import IPv4Network
+from typing import Any
 
 from maas_bird.models import (
     Advertisements,
@@ -21,7 +22,7 @@ from maas_bird.resolver import AuthorizationWithdrawn
 
 def restrict(
     previous: MultiDomainPlan,
-    config: dict,
+    config: dict[str, Any],
     inventory: Inventory,
     documents,
     passwords=None,

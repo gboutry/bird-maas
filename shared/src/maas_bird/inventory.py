@@ -16,7 +16,7 @@ def response_key(unit_name: str) -> str:
     match = re.fullmatch(r"[a-zA-Z0-9][a-zA-Z0-9-]*/([0-9]+)", unit_name)
     if match is None:
         raise ValueError("Invalid Juju consumer unit name")
-    return "unit-" + match.group(1)
+    return f"unit-{match[1]}"
 
 
 def response_data(document: UnitInventory) -> dict[str, str]:
