@@ -13,6 +13,7 @@ ROOT = Path(__file__).resolve().parents[1]
 
 
 def make_inputs():
+    """Build a complete single-domain host on two cards, using charm config defaults."""
     inventory = Inventory.model_validate(
         {
             "hosts": [
@@ -100,7 +101,7 @@ def make_inputs():
 
 
 def with_numa_contexts(inputs):
-
+    """Add node-specific source/table bindings to a caller-owned fresh fixture."""
     inputs["local_links"] = [
         dataclasses.replace(link, numa_node=n) for n, link in enumerate(inputs["local_links"])
     ]

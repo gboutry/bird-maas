@@ -236,3 +236,9 @@ semantics, vary domain layouts and resource collisions, and inject failures into
 installation position of the two-domain journal model. Real namespace tests remain the
 forwarding and BFD boundary; the model is not a substitute for Linux or physical TORs.
 Module-level imports are enforced with Ruff `PLC0415`.
+
+The property tests are organized by responsibility: `tests/strategies.py` builds
+inputs, `tests/unit/test_properties.py` states the invariants, and
+`tests/policy_model.py` models the journal's command boundary. Comments explain the
+address/priority reservations, failure timing and oracle limitations rather than
+repeating individual Python statements.
