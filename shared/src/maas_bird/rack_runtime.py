@@ -13,6 +13,7 @@ import re
 import shutil
 import time
 import uuid
+from ipaddress import IPv4Interface
 from pathlib import Path
 
 from charmlibs import apt
@@ -102,6 +103,26 @@ class RackService(OwnedBird):
             ):
                 established += 1
                 up_protocols.add(block.split()[0])
+        # A node's own exact /32 is delivered by the kernel local table before
+        # source-policy lookup. It need not be learned back through its peer
+        # (and BGP AS-loop prevention normally rejects that advertisement).
+        # Read native state only when this case occurs; an aggregate or another
+        # context's source never earns this exemption.
+        local_candidates = {
+            prefix
+            for domain in plan.domains
+            for context in domain.contexts
+            for prefix in domain.imports
+            if prefix in context.sources
+        }
+        local_sources = set()
+        if local_candidates:
+            addresses = json.loads(run(["ip", "-4", "-j", "address", "show", "dev", "lo"]).stdout)
+            local_sources = {
+                IPv4Interface(f"{address['local']}/{address['prefixlen']}").network
+                for interface in addresses
+                for address in interface.get("addr_info", [])
+            }
         missing, fallback = 0, 0
         for domain in plan.domains:
             for context in domain.contexts:
@@ -116,6 +137,8 @@ class RackService(OwnedBird):
                     if context.numa_node is None or s.numa_node == context.numa_node
                 }
                 for prefix in domain.imports:
+                    if prefix in context.sources and prefix in local_sources:
+                        continue
                     selected = [r for r in routes if r.get("dst") == str(prefix) and r.get("dev")]
                     missing += not selected
                     fallback += bool(selected) and not any(r["dev"] in local for r in selected)
