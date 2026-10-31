@@ -97,6 +97,8 @@ hardware forwarding counters during normal operation and failover.
   and the path to a first pilot.
 - [Node-owned addresses](docs/node-addresses.md): explicit address advertisement
   without claiming workload health.
+- [RB3 rack-local configuration review](examples/rb3-rack-local/README.md): concrete
+  host/DPU/TOR allocations and the remaining provisioning integrations.
 - [Dedicated VF paths](docs/dedicated-paths.md): separate Ceph VIP pairs and an
   explicitly NUMA-neutral context.
 - [Operations and migration](docs/operations.md): health, updates, withdrawal and
