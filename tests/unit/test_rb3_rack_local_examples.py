@@ -29,7 +29,9 @@ def reviewed_host_inputs(name):
     inventory = yaml.safe_load((EXAMPLES / "inventory.yaml").read_text())[
         "mbird-acceptance-inventory"
     ]
-    peers = json.loads(inventory["rack-profiles"])[0]["peers"]
+    profile = json.loads(inventory["rack-profiles"])[0]
+    rack = profile["id"]
+    peers = profile["peers"]
     configured = json.loads(
         yaml.safe_load((EXAMPLES / "dpu-attachments.yaml").read_text())[
             "mbird-acceptance-dpu-rb3"
@@ -62,20 +64,20 @@ def reviewed_host_inputs(name):
                 )
             )
         documents.append(
-            Attachments(
-                rack=config["rack"], cards=(Card(identity=identity, attachments=attachments),)
-            )
+            Attachments(rack=rack, cards=(Card(identity=identity, attachments=attachments),))
         )
     uid = f"test-observation-{name}"
     return dict(
         uid=uid,
         inventory=Inventory(
-            rack=config["rack"],
+            rack=rack,
+            member_uuids=(uid,),
+            scope_state="ready",
             hosts=(
                 Host(
                     machine_id=host["machine_id"],
                     system_uuid=uid,
-                    rack=config["rack"],
+                    rack=rack,
                     local_asn=host["asn"],
                     router_id=host["router_id"],
                     peers=peers,
@@ -93,6 +95,7 @@ def reviewed_host_inputs(name):
 def test_reviewed_ceph_config_compiles_with_test_observations(host):
     inputs = reviewed_host_inputs(host)
     assert inputs["config"]["enabled"] is False
+    assert "rack" not in inputs["config"]
     plan = resolve_rack(**inputs)
     assert plan.advertisement_mode == "node-addresses"
     assert len(plan.sessions) == 8
