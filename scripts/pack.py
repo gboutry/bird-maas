@@ -20,6 +20,9 @@ def main():
         action="store_true",
         help="Use a pinned project-local Charmcraft build; do not refresh the snap",
     )
+    parser.add_argument(
+        "--clean", action="store_true", help="Clean native build parts before packing"
+    )
     args = parser.parse_args()
     executable = ["charmcraft"]
     if args.development_charmcraft:
@@ -39,6 +42,13 @@ def main():
         # The monorepo-aware uv plugin is required in BOTH environments.
         env["CRAFT_SNAP_CHANNEL"] = os.environ.get("CRAFT_SNAP_CHANNEL", "latest/candidate")
     for name in args.charms or CHARMS:
+        if args.clean:
+            subprocess.run(
+                [*executable, "clean", "charm", "--use-lxd", "--platform", args.platform],
+                cwd=ROOT / "charms" / name,
+                env=env,
+                check=True,
+            )
         subprocess.run(
             [*executable, "pack", "--use-lxd", "--platform", args.platform],
             cwd=ROOT / "charms" / name,
