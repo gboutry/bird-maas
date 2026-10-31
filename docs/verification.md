@@ -120,3 +120,14 @@ suppressed fixture health checks.
 union. Juju string options are validated without coercing non-string values. Optional
 relation members and dynamically loaded test modules are checked before access.
 Existing assertions remain intact, with additional presence/type assertions where needed.
+
+## Readability refactor
+
+Generated inputs, property assertions and kernel-command modeling are separated into
+named helpers. The single-domain resolver now orchestrates host selection, attachment
+validation, advertisement selection and timer validation without changing their order.
+A one-time differential check against `e46e03d` compared 150 generated valid cases and
+100 generated invalid cases, including multiple simultaneous validation errors. Returned
+plans, exception classes and messages matched for those cases. This is bounded
+regression evidence, not exhaustive equivalence or a correction of the review findings.
+The existing property assertions and Hypothesis example/step limits are retained.

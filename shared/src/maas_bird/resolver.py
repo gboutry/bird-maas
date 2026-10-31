@@ -7,9 +7,12 @@ from ipaddress import IPv4Network
 from maas_bird.discovery import LocalLink
 from maas_bird.models import (
     Advertisements,
+    Attachment,
     Attachments,
+    Host,
     Inventory,
     MultiDomainPlan,
+    Peer,
     Plan,
     RoutingContext,
     RoutingDomain,
@@ -52,6 +55,35 @@ def resolve_single(
     config: dict,
 ) -> Plan:
     """Resolve one domain without recursively widening the result to a host plan."""
+    host, peers = _resolve_host(uid, inventory)
+    sessions = _resolve_sessions(attachments, local_links, peers, config["routing-domain"])
+    prefixes = _ready_prefixes(advertisements, host, config["routing-domain"])
+    imports = tuple(
+        IPv4Network(p.strip()) for p in config["import-prefixes"].split(",") if p.strip()
+    )
+    allowed = [IPv4Network(p.strip()) for p in config["export-allowlist"].split(",") if p.strip()]
+    if any(not any(prefix.subnet_of(network) for network in allowed) for prefix in prefixes):
+        raise InvalidIntent("Advertisement is outside the operator export allowlist")
+    table, tx, rx, mult, hold, keepalive = _routing_parameters(config)
+    sessions.sort(key=lambda session: session.interface)
+    return Plan(
+        host=host,
+        sessions=tuple(sessions),
+        prefixes=tuple(sorted(prefixes)),
+        imports=imports,
+        kernel_table=table,
+        bfd_tx=tx,
+        bfd_rx=rx,
+        bfd_multiplier=mult,
+        hold_time=hold,
+        keepalive_time=keepalive,
+        contexts=resolve_contexts(config, sessions, advertisements, host.machine_id, imports),
+        domain=config["routing-domain"],
+    )
+
+
+def _resolve_host(uid: str, inventory: Inventory) -> tuple[Host, dict[str, Peer]]:
+    """Select one host and validate its allocated routing identity and rack peers."""
     hosts = [h for h in inventory.hosts or () if h.system_uuid == uid.lower()]
     if len(hosts) != 1:
         raise (
@@ -68,10 +100,24 @@ def resolve_single(
         raise InvalidIntent("Rack peer identities are missing or duplicated")
     if any(not p.asn or not p.id for p in peers.values()):
         raise NotReady("Rack peer configuration is incomplete")
+    return host, peers
+
+
+def _resolve_sessions(
+    documents: list[Attachments],
+    local_links: list[LocalLink],
+    peers: dict[str, Peer],
+    domain: str,
+) -> list[Session]:
+    """Match card producers first, then validate each domain's local adjacency.
+
+    A card can expose several functions, but two producers must never claim the
+    same local card. Each approved TOR and local interface may be selected once.
+    """
     sessions: list[Session] = []
     attached_peers = set()
     serial_producers = {}
-    for producer, document in enumerate(attachments):
+    for producer, document in enumerate(documents):
         # One card can expose multiple PFs. The provider deduplicates those as one card record.
         for card in document.cards or ():
             identity = card.identity
@@ -84,57 +130,72 @@ def resolve_single(
                 raise InvalidIntent("Duplicate attachment providers for one local card")
             serial_producers[identity] = producer
             for attachment in card.attachments or ():
-                if attachment.domain != config["routing-domain"]:
+                if attachment.domain != domain:
                     continue
-                if attachment.ready is not True:
-                    raise NotReady("A local attachment is not ready")
-                f = attachment.function
-                if not f or f.controller is None or f.pf is None:
-                    raise NotReady("Attachment function coordinates are incomplete")
-                if not attachment.chassis_id or attachment.chassis_id.lower() not in peers:
-                    raise InvalidIntent("Local attachment reaches an unapproved TOR")
-                matches = [
-                    link
-                    for link in candidates
-                    if (link.controller, link.pf, link.vf, link.vlan)
-                    == (f.controller, f.pf, f.vf, attachment.vlan)
-                ]
-                if len(matches) != 1:
-                    raise (
-                        NotReady("Waiting for one matching local interface")
-                        if not matches
-                        else (InvalidIntent("Attachment matches multiple local interfaces"))
-                    )
-                link = matches[0]
-                if not link.link_local or not attachment.peer_link_local or not attachment.id:
-                    raise NotReady("Attachment has no usable IPv6 link-local adjacency")
-                if not re.fullmatch(r"[a-zA-Z0-9_.:-]{1,15}", link.interface):
-                    raise InvalidIntent("Unsafe interface name")
-                peer = peers[attachment.chassis_id.lower()]
-                assert peer.asn is not None  # Validated for every approved peer above.
-                if attachment.chassis_id.lower() in attached_peers:
-                    raise InvalidIntent("Multiple attachments resolve to the same approved TOR")
-                attached_peers.add(attachment.chassis_id.lower())
-                sessions.append(
-                    Session(
-                        id=attachment.id,
-                        interface=link.interface,
-                        peer=attachment.peer_link_local,
-                        local=link.link_local,
-                        remote_asn=peer.asn,
-                        numa_node=link.numa_node,
-                    )
-                )
+                sessions.append(_resolve_attachment(attachment, candidates, peers, attached_peers))
     if len(sessions) != len(peers):
         raise NotReady("Waiting for one attachment per approved TOR")
     if len({s.interface for s in sessions}) != len(sessions):
         raise InvalidIntent("Multiple sessions resolve to the same interface")
+    return sessions
+
+
+def _resolve_attachment(
+    attachment: Attachment,
+    candidates: list[LocalLink],
+    peers: dict[str, Peer],
+    attached_peers: set[str],
+) -> Session:
+    """Join exact function/VLAN coordinates and reserve one approved TOR binding."""
+    if attachment.ready is not True:
+        raise NotReady("A local attachment is not ready")
+    f = attachment.function
+    if not f or f.controller is None or f.pf is None:
+        raise NotReady("Attachment function coordinates are incomplete")
+    if not attachment.chassis_id or attachment.chassis_id.lower() not in peers:
+        raise InvalidIntent("Local attachment reaches an unapproved TOR")
+    matches = [
+        link
+        for link in candidates
+        if (link.controller, link.pf, link.vf, link.vlan)
+        == (f.controller, f.pf, f.vf, attachment.vlan)
+    ]
+    if len(matches) != 1:
+        raise (
+            NotReady("Waiting for one matching local interface")
+            if not matches
+            else (InvalidIntent("Attachment matches multiple local interfaces"))
+        )
+    link = matches[0]
+    if not link.link_local or not attachment.peer_link_local or not attachment.id:
+        raise NotReady("Attachment has no usable IPv6 link-local adjacency")
+    if not re.fullmatch(r"[a-zA-Z0-9_.:-]{1,15}", link.interface):
+        raise InvalidIntent("Unsafe interface name")
+    peer = peers[attachment.chassis_id.lower()]
+    assert peer.asn is not None  # Validated for every approved peer above.
+    if attachment.chassis_id.lower() in attached_peers:
+        raise InvalidIntent("Multiple attachments resolve to the same approved TOR")
+    attached_peers.add(attachment.chassis_id.lower())
+    return Session(
+        id=attachment.id,
+        interface=link.interface,
+        peer=attachment.peer_link_local,
+        local=link.link_local,
+        remote_asn=peer.asn,
+        numa_node=link.numa_node,
+    )
+
+
+def _ready_prefixes(
+    advertisements: list[Advertisements], host: Host, domain: str
+) -> set[IPv4Network]:
+    """Require complete snapshots before selecting this host's ready /32 exports."""
     if not advertisements or any(d.advertisements is None for d in advertisements):
         raise NotReady("Waiting for complete advertisement snapshots")
     prefixes = set()
     for document in advertisements:
         for a in document.advertisements or ():
-            if a.machine_id != host.machine_id or a.domain != config["routing-domain"]:
+            if a.machine_id != host.machine_id or a.domain != domain:
                 continue
             if a.ready is None or a.prefix is None:
                 raise NotReady("Advertisement is incomplete")
@@ -142,12 +203,11 @@ def resolve_single(
                 if a.prefix.prefixlen != 32:
                     raise InvalidIntent("Only locally owned IPv4 /32 advertisements are supported")
                 prefixes.add(a.prefix)
-    imports = tuple(
-        IPv4Network(p.strip()) for p in config["import-prefixes"].split(",") if p.strip()
-    )
-    allowed = [IPv4Network(p.strip()) for p in config["export-allowlist"].split(",") if p.strip()]
-    if any(not any(prefix.subnet_of(network) for network in allowed) for prefix in prefixes):
-        raise InvalidIntent("Advertisement is outside the operator export allowlist")
+    return prefixes
+
+
+def _routing_parameters(config) -> tuple[int, int, int, int, int, int]:
+    """Validate kernel-table ownership range and BGP/BFD timer bounds."""
     table = config["kernel-table"]
     if not 1000 <= table <= 4294967295:
         raise InvalidIntent("Use a dedicated kernel routing table >= 1000")
@@ -157,21 +217,7 @@ def resolve_single(
     hold, keepalive = config["bgp-hold-time-seconds"], config["bgp-keepalive-time-seconds"]
     if not 1 <= keepalive <= 21845 or not 3 * keepalive <= hold <= 65535:
         raise InvalidIntent("BGP hold time must be at least three keepalive intervals")
-    sessions.sort(key=lambda session: session.interface)
-    return Plan(
-        host=host,
-        sessions=tuple(sessions),
-        prefixes=tuple(sorted(prefixes)),
-        imports=imports,
-        kernel_table=table,
-        bfd_tx=tx,
-        bfd_rx=rx,
-        bfd_multiplier=mult,
-        hold_time=hold,
-        keepalive_time=keepalive,
-        contexts=resolve_contexts(config, sessions, advertisements, host.machine_id, imports),
-        domain=config["routing-domain"],
-    )
+    return table, tx, rx, mult, hold, keepalive
 
 
 def resolve_contexts(config, sessions, advertisements, machine_id, imports):
