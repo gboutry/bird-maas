@@ -19,7 +19,17 @@ class DpuAttachmentsCharm(ops.CharmBase):
             # rack placement. Consumers join native card identity to MAAS peers.
             document = self._observations()
             for relation in relations(self, "attachments", event):
-                publish(relation, self.unit, document)
+                try:
+                    publish(relation, self.unit, document)
+                except ops.RelationNotFoundError:
+                    # Juju can remove this relation between the departed event
+                    # snapshot and relation-set. Other publication failures must
+                    # remain visible, as must a missing unrelated relation.
+                    if not (
+                        isinstance(event, ops.RelationDepartedEvent)
+                        and event.relation.id == relation.id
+                    ):
+                        raise
             ready = [a.ready for card in document.cards or () for a in card.attachments or ()]
             self.unit.status = (
                 ops.ActiveStatus("Attachments validated against devlink, OVS and LLDP")
