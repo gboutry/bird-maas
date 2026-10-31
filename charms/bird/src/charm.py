@@ -8,7 +8,13 @@ import ops
 from maas_bird import discovery, runtime
 from maas_bird.charm_support import observe, relations, secret_content
 from maas_bird.interfaces import application_data, decode, publish
-from maas_bird.models import Advertisements, Attachments, Inventory, InventoryRequest
+from maas_bird.models import (
+    Advertisements,
+    Attachments,
+    Inventory,
+    InventoryRequest,
+    MultiDomainPlan,
+)
 from maas_bird.policy import PolicyError
 from maas_bird.render import render
 from maas_bird.resolver import NotReady, resolve
@@ -76,7 +82,7 @@ class BirdCharm(ops.CharmBase):
                 raise NotReady("Advertised service /32 is not present on lo")
             secrets = secret_content(self, "bgp-credentials")
             contents = render(plan, secrets)
-            if plan.contexts:
+            if isinstance(plan, MultiDomainPlan) or plan.contexts:
                 service.apply_contexts(contents, plan)
             else:
                 service.apply(contents, plan.kernel_table, len(plan.sessions))

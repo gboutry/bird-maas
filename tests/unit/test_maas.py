@@ -24,6 +24,7 @@ def records():
 
 def test_normalize_only_allowlisted_fields(records):
     result = normalize(*records)
+    assert result.hosts is not None
     assert result.hosts[0].system_uuid == "host-uuid"
     assert "never-export" not in result.model_dump_json()
     assert "power_parameters" not in result.model_dump_json()

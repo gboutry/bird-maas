@@ -95,6 +95,7 @@ def test_unknown_operator_fields_are_rejected_but_relations_stay_extensible(doma
     parsed = Advertisements.model_validate(doc)
     roundtrip = decode(Advertisements, encode(parsed))
     assert encode(roundtrip) == encode(domain_inputs["advertisements"][0])
+    assert roundtrip.advertisements is not None
     assert {(a.domain, a.context, str(a.prefix)) for a in roundtrip.advertisements} == {
         ("storage-public", "numa0", "10.60.11.11/32"),
         ("storage-public", "numa1", "10.60.11.12/32"),
@@ -116,6 +117,7 @@ def test_domain_withdrawal_does_not_withdraw_other_domain(domain_inputs):
             advertisement["ready"] = False
     domain_inputs["advertisements"] = [Advertisements.model_validate(doc)]
     plan = resolve(**domain_inputs)
+    assert isinstance(plan, MultiDomainPlan)
     assert len(plan.domains[0].prefixes) == 2
     assert plan.domains[1].prefixes == ()
     config = render(plan, {s.id: "example" for s in plan.sessions})
@@ -142,6 +144,8 @@ def test_concrete_relation_and_config_examples_match_exported_schemas():
         roundtrip = decode(model, encode(value))
         assert encode(roundtrip) == encode(value)
         if model is Advertisements:
+            assert isinstance(roundtrip, Advertisements)
+            assert roundtrip.advertisements is not None
             assert {a.domain for a in roundtrip.advertisements} == {
                 "storage-public",
                 "storage-replica",

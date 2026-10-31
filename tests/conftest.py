@@ -22,6 +22,7 @@ def charm_context():
         spec = importlib.util.spec_from_file_location(
             name.replace("-", "_") + "_charm", path / "src/charm.py"
         )
+        assert spec is not None and spec.loader is not None
         module = importlib.util.module_from_spec(spec)
         spec.loader.exec_module(module)
         cls = {

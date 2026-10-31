@@ -20,6 +20,13 @@ for directory in sorted((ROOT / "charms").iterdir()):
         assert yaml.safe_load(archive.read("config.yaml")) == declared["config"]
         assert "dispatch" in archive.namelist()
         assert not metadata.get("subordinate", False)
+        assert not any(
+            "site-packages/" in name
+            and name.split("site-packages/", 1)[1].startswith(
+                ("hypothesis/", "hypothesis-", "_hypothesis")
+            )
+            for name in archive.namelist()
+        ), "Hypothesis must remain a development-only dependency"
         assert archive.read("src/charm.py") == (directory / "src/charm.py").read_bytes()
         for source in sorted((ROOT / "shared/src/maas_bird").glob("*.py")):
             suffix = "site-packages/maas_bird/" + source.name
@@ -32,6 +39,7 @@ for directory in sorted((ROOT / "charms").iterdir()):
             "sha256": hashlib.sha256(artifact.read_bytes()).hexdigest(),
             "principal": True,
             "sources_match": True,
+            "hypothesis_absent": True,
         }
     )
 print(json.dumps(results, indent=2))

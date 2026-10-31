@@ -1,6 +1,7 @@
 """Small shared helpers; workload orchestration remains in each charm."""
 
 import json
+from collections.abc import Mapping
 
 import ops
 
@@ -31,6 +32,13 @@ def relations(charm, endpoint, event):
         if isinstance(event, ops.RelationBrokenEvent) and event.relation.id == relation.id:
             continue
         yield relation
+
+
+def config_string(config: Mapping[str, object], option: str) -> str:
+    value = config[option]
+    if not isinstance(value, str):
+        raise ValueError(f"{option} must be a string")
+    return value
 
 
 def secret_content(charm, option):

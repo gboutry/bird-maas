@@ -8,7 +8,16 @@ dependencies = ["maas-bird-common"]
 maas-bird-common = { path = "shared", editable = true }
 
 [dependency-groups]
-dev = ["ops[testing]~=3.7", "pytest>=8,<10", "pytest-cov>=6", "ruff>=0.12", "jubilant>=1.8,<2", "pytest-jubilant>=2,<3", "jsonschema>=4"]
+dev = [
+    "ops[testing]~=3.7",
+    "pytest>=8,<10",
+    "pytest-cov>=6",
+    "ruff>=0.12",
+    "jubilant>=1.8,<2",
+    "pytest-jubilant>=2,<3",
+    "jsonschema>=4",
+    "hypothesis>=6,<7",
+]
 
 [tool.pytest.ini_options]
 testpaths = ["tests/unit"]
@@ -20,4 +29,4 @@ line-length = 99
 target-version = "py312"
 
 [tool.ruff.lint]
-select = ["E", "F", "I", "UP", "B"]
+select = ["E", "F", "I", "UP", "B", "PLC0415"]

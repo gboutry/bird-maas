@@ -8,3 +8,5 @@ htmlcov/
 build/
 .cache/
 *.egg-info/
+
+.hypothesis/

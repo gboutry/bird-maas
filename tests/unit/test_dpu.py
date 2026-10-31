@@ -1,6 +1,6 @@
 import pytest
 from maas_bird import discovery, dpu
-from maas_bird.models import Identity
+from maas_bird.models import Attachment, Identity
 
 
 @pytest.fixture
@@ -52,13 +52,21 @@ def observed(monkeypatch):
     return config, ports, lldp, calls
 
 
+def first_attachment(config) -> Attachment:
+    observation = dpu.observe(config)
+    assert observation.cards is not None
+    attachments = observation.cards[0].attachments
+    assert attachments is not None
+    return attachments[0]
+
+
 def test_actual_observations_gate_readiness(observed):
     config, ports, lldp, calls = observed
-    assert dpu.observe(config).cards[0].attachments[0].ready is True
+    assert first_attachment(config).ready is True
     assert calls
     assert all(args[:2] in [["ovs-vsctl", "iface-to-br"], ["ovs-vsctl", "get"]] for args in calls)
     lldp["lldp"]["interface"]["p0"]["chassis"]["tor1"]["id"]["value"] = "unapproved"
-    assert dpu.observe(config).cards[0].attachments[0].ready is False
+    assert first_attachment(config).ready is False
 
 
 def test_absent_card_rejected(observed):
@@ -71,7 +79,7 @@ def test_absent_card_rejected(observed):
 def test_wrong_vf_is_not_ready(observed):
     config, ports, *_ = observed
     ports["port"]["pci/0000:03:00.0/65599"]["vfnum"] = 62
-    assert dpu.observe(config).cards[0].attachments[0].ready is False
+    assert first_attachment(config).ready is False
 
 
 def test_missing_explicit_trunk_membership_is_not_ready(observed, monkeypatch):
@@ -79,4 +87,4 @@ def test_missing_explicit_trunk_membership_is_not_ready(observed, monkeypatch):
     monkeypatch.setattr(
         discovery, "command", lambda args: "[]" if args[-1] == "trunks" else "br-data"
     )
-    assert dpu.observe(config).cards[0].attachments[0].ready is False
+    assert first_attachment(config).ready is False

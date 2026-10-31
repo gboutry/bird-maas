@@ -40,6 +40,18 @@ def resolve(
         return resolve_domains(
             uid, inventory, attachments, advertisements, local_links, config, raw
         )
+    return resolve_single(uid, inventory, attachments, advertisements, local_links, config)
+
+
+def resolve_single(
+    uid: str,
+    inventory: Inventory,
+    attachments: list[Attachments],
+    advertisements: list[Advertisements],
+    local_links: list[LocalLink],
+    config: dict,
+) -> Plan:
+    """Resolve one domain without recursively widening the result to a host plan."""
     hosts = [h for h in inventory.hosts or () if h.system_uuid == uid.lower()]
     if len(hosts) != 1:
         raise (
@@ -48,14 +60,15 @@ def resolve(
             else InvalidIntent("Multiple inventory records match this host")
         )
     host = hosts[0]
-    if not all([host.machine_id, host.local_asn, host.router_id, host.peers]):
+    host_peers = host.peers
+    if not host.machine_id or not host.local_asn or not host.router_id or not host_peers:
         raise NotReady("Host routing identity is incomplete")
-    peers = {p.chassis_id.lower(): p for p in host.peers if p.chassis_id}
-    if len(peers) != len(host.peers):
+    peers = {p.chassis_id.lower(): p for p in host_peers if p.chassis_id}
+    if len(peers) != len(host_peers):
         raise InvalidIntent("Rack peer identities are missing or duplicated")
     if any(not p.asn or not p.id for p in peers.values()):
         raise NotReady("Rack peer configuration is incomplete")
-    sessions = []
+    sessions: list[Session] = []
     attached_peers = set()
     serial_producers = {}
     for producer, document in enumerate(attachments):
@@ -98,6 +111,7 @@ def resolve(
                 if not re.fullmatch(r"[a-zA-Z0-9_.:-]{1,15}", link.interface):
                     raise InvalidIntent("Unsafe interface name")
                 peer = peers[attachment.chassis_id.lower()]
+                assert peer.asn is not None  # Validated for every approved peer above.
                 if attachment.chassis_id.lower() in attached_peers:
                     raise InvalidIntent("Multiple attachments resolve to the same approved TOR")
                 attached_peers.add(attachment.chassis_id.lower())
@@ -143,9 +157,10 @@ def resolve(
     hold, keepalive = config["bgp-hold-time-seconds"], config["bgp-keepalive-time-seconds"]
     if not 1 <= keepalive <= 21845 or not 3 * keepalive <= hold <= 65535:
         raise InvalidIntent("BGP hold time must be at least three keepalive intervals")
+    sessions.sort(key=lambda session: session.interface)
     return Plan(
         host=host,
-        sessions=tuple(sorted(sessions, key=lambda x: x.interface)),
+        sessions=tuple(sessions),
         prefixes=tuple(sorted(prefixes)),
         imports=imports,
         kernel_table=table,
@@ -259,7 +274,7 @@ def resolve_domains(uid, inventory, attachments, advertisements, local_links, co
                 raise InvalidIntent("Routing domain destination prefixes must not overlap")
             if any(a.overlaps(b) for a in domain.export_allowlist for b in other.export_allowlist):
                 raise InvalidIntent("Routing domain export allowlists must not overlap")
-    plans = []
+    plans: list[Plan] = []
     for domain in domains:
         options = config | {
             "routing-domains": "[]",
@@ -277,7 +292,9 @@ def resolve_domains(uid, inventory, attachments, advertisements, local_links, co
         ):
             if (value := getattr(domain, field)) is not None:
                 options[field.replace("_", "-")] = value
-        plans.append(resolve(uid, inventory, attachments, advertisements, local_links, options))
+        plans.append(
+            resolve_single(uid, inventory, attachments, advertisements, local_links, options)
+        )
     sessions = [s for plan in plans for s in plan.sessions]
     if len({s.id for s in sessions}) != len(sessions):
         raise InvalidIntent("Session IDs must be unique across routing domains")

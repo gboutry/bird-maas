@@ -72,7 +72,7 @@ def normalize(machines: list[dict], racks: list[dict], identities: list[dict]) -
     rack_by_id = {item["id"]: item for item in racks}
     if len(rack_by_id) != len(racks):
         raise ValueError("Duplicate rack profiles")
-    hosts = []
+    hosts: list[Host] = []
     seen = set()
     for machine in machines:
         mid = machine.get("system_id")
@@ -114,4 +114,5 @@ def normalize(machines: list[dict], racks: list[dict], identities: list[dict]) -
     ]:
         if any(count != 1 for count in Counter(values).values()):
             raise ValueError("Duplicate routing or hardware identity")
-    return Inventory(hosts=tuple(sorted(hosts, key=lambda x: x.machine_id)))
+    hosts.sort(key=lambda host: host.machine_id or "")
+    return Inventory(hosts=tuple(hosts))

@@ -11,7 +11,7 @@ production deployment or a 60-rack scale claim.
   OVS trunk membership and LLDP chassis identity. It never changes forwarding, VF
   configuration, OVS or TORs. Deploy on each existing DPU machine.
 - **bird** matches its hardware UUID to inventory and matches generic device identity
-  records to locally discovered functions. It manages one BIRD routing domain on an
+  records to locally discovered functions. It manages BIRD routing domains on an
   existing host, with IPv6 link-local BGP transport, IPv4 extended next hops, and BFD.
   It starts disabled. It does not create interfaces or VIP addresses. Optional NUMA
   contexts manage narrowly scoped source-policy rules and fail-closed guards.
@@ -40,6 +40,7 @@ trunk with directly observed LLDP. Complex bridge/bond reachability is not infer
 
 ```bash
 uv sync --locked --python 3.12
+uv check
 make lint
 make test
 ```
@@ -179,3 +180,59 @@ mounts a private `/run`, and creates synthetic hosts/TORs there. Tests cover 50/
 BFD profiles, actual UDP egress, silent failures with carrier up, failback, both-path
 failure, protected traffic, policy collisions, interrupted operations and rollback.
 These are correctness tests, not CPU overhead or convergence benchmarks.
+
+## Multiple routing domains
+
+`routing-domains` enables separate Ceph public, Ceph replication, and other domains
+within the same host-level BIRD owner. Each domain declares its own imports, export
+allowlist, verified attachment domain, and per-host NUMA contexts. Domain IDs match the
+existing `domain` field on attachment and advertisement relations; the workload also
+supplies its context ID. No new charm or subordinate is required.
+
+See [the complete example](examples/multiple-domains/bird.yaml), the accompanying
+inventory/attachment/advertisement JSON documents, and
+[the configuration schema](docs/schemas/routing-domains-config.json). The example has
+public contexts in tables 3100/3101 and replication contexts in 3200/3201, with 50 ms
+and 300 ms BFD respectively. These are illustrative addresses and timers, not live PC8
+configuration or measured convergence targets.
+
+Leave legacy `routing-contexts` empty when using `routing-domains`. Legacy single-domain
+options continue to work when `routing-domains=[]`; the new mode uses domain-specific
+import/export lists. Global BGP/BFD timers provide defaults, with optional domain-level
+overrides. `protected-prefixes` lists management and other **unmanaged** networks;
+managed replication prefixes belong in their replication domain instead.
+
+Public and replication use distinct pre-provisioned interfaces/VFs or VLAN interfaces.
+Their kernel tables, source VIPs and policy priority ranges must be globally unique;
+managed destination prefixes and export allowlists must not overlap across domains.
+No VRF or interface is created. This first multi-domain mode expects every unit to have
+valid per-host contexts for every configured domain, and the same inventory-approved
+rack TOR set in each domain. It does not support overlapping tenant address spaces.
+
+Domains have separate BGP tables and filters. Source rules select their own context
+for every managed destination, so a foreign-domain destination hits the context's
+unreachable guard instead of falling through to the main table. Other sources and
+unmanaged destinations are outside this routing policy. The host's higher-priority
+local-address handling still applies; routing domains are not firewall or process
+security boundaries.
+
+One native BIRD candidate and one ownership journal cover the host. Confirmation
+requires all domains' sessions and local routes. Timed rollback restores the previous
+whole generation. Domain/table/selector reassignment requires decommissioning; foreign
+objects and uncertain acknowledgements block automatic cleanup. A shared daemon or
+trusted-relation removal affects all domains, while BFD path failures remain independent.
+
+## Property-based testing
+
+`make test` includes [Hypothesis](https://hypothesis.readthedocs.io/en/latest/)
+properties and a journal lifecycle state machine. Run that subset with statistics:
+
+```bash
+uv run --locked pytest tests/unit/test_properties.py --hypothesis-show-statistics
+```
+
+The generated tests use fresh input factories per example, preserve canonical relation
+semantics, vary domain layouts and resource collisions, and inject failures into every
+installation position of the two-domain journal model. Real namespace tests remain the
+forwarding and BFD boundary; the model is not a substitute for Linux or physical TORs.
+Module-level imports are enforced with Ruff `PLC0415`.

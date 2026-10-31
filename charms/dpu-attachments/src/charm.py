@@ -3,7 +3,7 @@
 
 import ops
 from maas_bird import discovery, dpu
-from maas_bird.charm_support import json_list, observe
+from maas_bird.charm_support import config_string, json_list, observe
 from maas_bird.interfaces import publish
 from maas_bird.models import Attachments, Card
 
@@ -15,7 +15,7 @@ class DpuAttachmentsCharm(ops.CharmBase):
 
     def _reconcile(self, event):
         try:
-            configured = json_list(self.config["attachments"], "attachments")
+            configured = json_list(config_string(self.config, "attachments"), "attachments")
             identities = {identity.value: identity for identity in discovery.cards().values()}
             local_config = [item for item in configured if item.get("serial") in identities]
             if local_config:

@@ -3,12 +3,14 @@
 The implementation has been checked with:
 
 - Ruff lint and format checks through the root Makefile.
-- 95 unit and Ops state-transition tests covering contracts, identity joins, input
+- The actual `uv check` command, with no diagnostic suppressions or path exclusions.
+- 127 unit and Ops state-transition tests covering contracts, identity joins, input
   authorization, read-only discovery, lifecycle removal and owned runtime guards.
-- Four native BIRD 2.14 checks: generated 50 ms and 300 ms configurations parse; real
+- Five native BIRD 2.14 checks: generated 50 ms, 300 ms and multi-domain configurations
+  parse; real
   localhost IPv4-over-IPv6 BGP exchanges/withdraws a route; native configuration timeout
   restores the previous generation and explicit confirmation retains a candidate.
-- Eleven disposable Linux namespace integration tests using actual BIRD 2.14, IPv6
+- Fourteen disposable Linux namespace integration tests using actual BIRD 2.14, IPv6
   link-local BGP/BFD and kernel forwarding. Both 50 ms and 300 ms profiles exercise
   opposite preferred egress for two VIPs, silent faults with carrier up, BFD-triggered
   remote egress, failback, actual UDP delivery, and both-path failure. Tests assert
@@ -61,3 +63,60 @@ replacement instead checks the exact kernel guard and a real failed UDP send.
 These checks do not establish physical NUMA locality, zero intersocket traffic,
 hardware offload, CPU overhead, host reboot restoration, or automatic coordinated TOR
 rollback. A live N5/TOR rollout and physical acceptance remain separate, unperformed work.
+
+## Multi-domain extension
+
+The public/replication extension has passed all 14 namespace cases and all five
+native BIRD checks. The namespace suite observes public BFD at 0.050/0.150 seconds
+and replication at 0.300/0.900 seconds, actual per-domain packet forwarding, rejection
+of foreign-domain BGP routes and exports, cross-domain source-policy blocking,
+independent domain failures/recovery, protected traffic, whole-install rollback and
+unconfirmed multi-domain candidate rollback. These are synthetic correctness checks,
+not physical TOR failover or CPU-overhead measurements.
+
+The unit/state suite passes all 127 cases. Relation round trips compare complete
+canonical databags and explicitly preserve public/replication domain and context
+bindings; collection order is not part of the relation contract. The concrete examples
+are validated against their generated schemas and shared Pydantic models.
+
+The relation wire contracts retain their existing fields and compatibility. The new
+`routing-domains-config.json` schema describes strict operator configuration; concrete
+provider examples are in `examples/multiple-domains/`. No N5, DPU or TOR change has been
+made. Physical NUMA locality, VRF/firewall isolation, hardware offload, reboot behavior,
+Juju scale and live Ceph behavior remain outside this validation boundary.
+
+## Property-based tests and import hygiene
+
+Hypothesis is a development-only dependency, locked in the root `uv.lock`. It does not
+change the shared runtime requirements or the individual charm lockfiles. Artifact
+verification explicitly rejects packed Hypothesis modules or distribution metadata.
+
+Six generated/stateful test cases cover:
+
+- Canonical relation round trips, arbitrary member ordering, duplicate members,
+  additive fields, and the distinction between unknown and explicitly empty snapshots.
+- Generated domain tables, priority ranges, source bindings, destination sets and NUMA
+  mappings, including input-order invariance and rejection of cross-domain collisions.
+- Failures before each acknowledged installation operation, preserving foreign model
+  objects and restoring the original state before a successful retry.
+- Lost acknowledgements at each operation, refusing both adoption and automatic removal.
+- Stateful sequences of installation, reconciliation, failed installation, retry and
+  removal, checking ownership and foreign-object preservation after every transition.
+
+Journal tests use real temporary files and fsyncs against an in-memory kernel-command
+model. They do not invoke `ip`, emulate a complete Linux kernel, or replace namespace
+acceptance. Their filesystem timing is not a performance assertion. Existing example
+and namespace assertions remain in place.
+
+All Python imports are now at module scope. Ruff `PLC0415` enforces this through the
+native `make lint` target. Fixture builders are shared with generated tests through
+`tests/factories.py`, without pytest-fixture reuse across Hypothesis examples or
+suppressed fixture health checks.
+
+## Static type validation
+
+`uv check` validates all charms, shared code and tests. Single-domain resolution returns
+`Plan` directly; the multi-domain dispatcher composes those plans without a recursive
+union. Juju string options are validated without coercing non-string values. Optional
+relation members and dynamically loaded test modules are checked before access.
+Existing assertions remain intact, with additional presence/type assertions where needed.

@@ -2,7 +2,7 @@
 """Publish a credential-minimized MAAS inventory; never manage machines."""
 
 import ops
-from maas_bird.charm_support import json_list, observe, secret_content
+from maas_bird.charm_support import config_string, json_list, observe, secret_content
 from maas_bird.interfaces import publish
 from maas_bird.maas import InventoryError, MaasClient, normalize
 
@@ -19,12 +19,12 @@ class MaasInventoryCharm(ops.CharmBase):
             return
         try:
             content = secret_content(self, "maas-credentials")
-            if not self.config["maas-url"]:
+            if not config_string(self.config, "maas-url"):
                 raise ValueError("Set maas-url to a verified HTTPS endpoint")
             inventory = normalize(
-                MaasClient(self.config["maas-url"], content["api-key"]).machines(),
-                json_list(self.config["rack-profiles"], "rack-profiles"),
-                json_list(self.config["host-identities"], "host-identities"),
+                MaasClient(config_string(self.config, "maas-url"), content["api-key"]).machines(),
+                json_list(config_string(self.config, "rack-profiles"), "rack-profiles"),
+                json_list(config_string(self.config, "host-identities"), "host-identities"),
             )
             for relation in self.model.relations["inventory"]:
                 publish(relation, self.app, inventory)
