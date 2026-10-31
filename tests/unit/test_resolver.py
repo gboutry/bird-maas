@@ -1,7 +1,8 @@
 import pytest
 from maas_bird.models import Advertisements, Attachments, Inventory
-from maas_bird.render import quoted, render
-from maas_bird.resolver import InvalidIntent, NotReady, resolve
+
+from tests.prototype.render import quoted, render
+from tests.prototype.resolver import InvalidIntent, NotReady, resolve
 
 
 def test_matches_two_cards_without_maas_on_dpu(inputs):

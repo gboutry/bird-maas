@@ -1,6 +1,6 @@
 """Normalize observed iproute2 JSON without relaxing object ownership."""
 
-from maas_bird.policy import guard_key, rule_key
+from tests.prototype.policy import guard_key, rule_key
 
 
 def test_split_prefix_lengths_match_canonical_owned_rule():

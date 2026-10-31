@@ -11,6 +11,8 @@ import ops
 
 from maas_bird.models import Record
 
+MAX_FIELD_BYTES = 48 * 1024
+
 
 def _json_key(value):
     return json.dumps(value, sort_keys=True)
@@ -33,15 +35,27 @@ def encode(document: Record) -> dict[str, str]:
 
 
 def decode[T: Record](model: type[T], bag: MutableMapping[str, str]) -> T:
-    # Juju also adds unrelated fields such as ingress-address: do not decode those.
-    return model.model_validate(
-        {key: _canonical(json.loads(bag[key])) for key in model.model_fields if key in bag}
-    )
+    # Decode only known root fields. Validate before canonicalization so unknown
+    # nested extensions are discarded rather than recursively traversed by us.
+    values = {}
+    for key in model.model_fields:
+        if key not in bag:
+            continue
+        if len(bag[key].encode()) > MAX_FIELD_BYTES:
+            raise ValueError("Relation field exceeds the rack-scoped wire limit")
+        try:
+            values[key] = json.loads(bag[key])
+        except RecursionError as exc:
+            raise ValueError("Relation field is too deeply nested") from exc
+    parsed = model.model_validate(values)
+    return model.model_validate(_canonical(parsed.model_dump(mode="json", exclude_none=True)))
 
 
 def publish(relation: ops.Relation, entity: ops.Application | ops.Unit, document: Record):
     bag = relation.data[entity]
     values = encode(document)
+    if any(len(value.encode()) > MAX_FIELD_BYTES for value in values.values()):
+        raise ValueError("Relation field exceeds the rack-scoped wire limit")
     for key in document.__class__.model_fields:
         if key in values:
             if bag.get(key) != values[key]:

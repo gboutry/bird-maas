@@ -1,0 +1,23 @@
+{
+  "hosts": [
+    {
+      "machine_id": "abc123",
+      "system_uuid": "host-uuid",
+      "rack": "a",
+      "local_asn": 4200001011,
+      "router_id": "10.255.11.11",
+      "peers": [
+        {
+          "id": "tor1",
+          "chassis_id": "aa:aa:aa:aa:aa:01",
+          "asn": 65011
+        },
+        {
+          "id": "tor2",
+          "chassis_id": "aa:aa:aa:aa:aa:02",
+          "asn": 65012
+        }
+      ]
+    }
+  ]
+}

@@ -88,7 +88,13 @@ def make_inputs():
         ]["options"].items()
     }
     config.update(
-        {"import-prefixes": "10.60.11.0/24,10.60.12.0/24", "export-allowlist": "10.60.11.0/24"}
+        {
+            "routing-domain": "storage-public",
+            "kernel-table": 3100,
+            "routing-contexts": "[]",
+            "import-prefixes": "10.60.11.0/24,10.60.12.0/24",
+            "export-allowlist": "10.60.11.0/24",
+        }
     )
     return dict(
         uid="host-uuid",
@@ -204,4 +210,48 @@ def with_routing_domains(numa_inputs):
         ]
     )
     data["advertisements"] = [Advertisements.model_validate(raw)]
+    return data
+
+
+def rack_inputs(inputs=None):
+    """Explicit production fixture: one rack, multi-domain intent, scoped producers."""
+    data = inputs or with_routing_domains(with_numa_contexts(make_inputs()))
+    if not json.loads(data["config"]["routing-domains"]):
+        contexts = json.loads(data["config"]["routing-contexts"])
+        if not contexts:
+            data = with_numa_contexts(data)
+            contexts = json.loads(data["config"]["routing-contexts"])
+        data["config"]["routing-domains"] = json.dumps(
+            [
+                {
+                    "id": data["config"]["routing-domain"],
+                    "import_prefixes": data["config"]["import-prefixes"].split(","),
+                    "export_allowlist": data["config"]["export-allowlist"].split(","),
+                    "contexts": contexts,
+                }
+            ]
+        )
+    data["config"].update(rack="a", **{"routing-contexts": "[]"})
+    data["inventory"] = data["inventory"].model_copy(update={"rack": "a"})
+    data["attachments"] = [doc.model_copy(update={"rack": "a"}) for doc in data["attachments"]]
+    advertisements = []
+    grouped = {}
+    for doc in data["advertisements"]:
+        for ad in doc.advertisements or ():
+            grouped.setdefault(ad.domain, []).append(ad)
+    for domain, rows in grouped.items():
+        advertisements.append(
+            Advertisements(
+                rack="a", machine_id="abc123", domain=domain, advertisements=tuple(rows)
+            )
+        )
+    data["advertisements"] = advertisements
+    for key in (
+        "routing-domain",
+        "kernel-table",
+        "routing-contexts",
+        "import-prefixes",
+        "export-allowlist",
+    ):
+        data["config"].pop(key, None)
     return data

@@ -31,10 +31,18 @@ provides:
     optional: true
 config:
   options:
+    inventory-cache-seconds:
+      type: int
+      default: 300
+      description: MAAS request backoff/cache age for relation events, 30..3600 seconds. Periodic status hooks refresh the snapshot; failures permit removals only.
     maas-url:
       type: string
       description: Verified HTTPS MAAS base URL including /MAAS/.
       default: ''
+    maas-ca-certificate:
+      type: string
+      default: ''
+      description: Optional Juju secret containing ca-cert PEM for verified private-CA MAAS HTTPS. Empty uses system trust; verification cannot be disabled.
     maas-credentials:
       type: string
       description: Juju secret ID containing api-key.

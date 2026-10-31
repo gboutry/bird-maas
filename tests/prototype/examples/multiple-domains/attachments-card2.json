@@ -1,0 +1,38 @@
+{
+  "cards": [
+    {
+      "identity": {
+        "scheme": "devlink-serial",
+        "value": "card2"
+      },
+      "attachments": [
+        {
+          "id": "path2",
+          "function": {
+            "controller": 0,
+            "pf": 0,
+            "vf": 63
+          },
+          "domain": "storage-public",
+          "vlan": 3414,
+          "chassis_id": "aa:aa:aa:aa:aa:02",
+          "peer_link_local": "fe80::1",
+          "ready": true
+        },
+        {
+          "id": "replica-path2",
+          "function": {
+            "controller": 0,
+            "pf": 0,
+            "vf": 62
+          },
+          "domain": "storage-replica",
+          "vlan": 3415,
+          "chassis_id": "aa:aa:aa:aa:aa:02",
+          "peer_link_local": "fe80::1",
+          "ready": true
+        }
+      ]
+    }
+  ]
+}

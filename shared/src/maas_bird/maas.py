@@ -58,7 +58,7 @@ class MaasClient:
             result = response.json()
         except (requests.RequestException, ValueError) as exc:
             raise InventoryError("MAAS inventory read failed") from exc
-        if not isinstance(result, list):
+        if not isinstance(result, list) or any(not isinstance(row, dict) for row in result):
             raise InventoryError("Unexpected MAAS inventory response")
         return result
 
@@ -116,3 +116,60 @@ def normalize(machines: list[dict], racks: list[dict], identities: list[dict]) -
             raise ValueError("Duplicate routing or hardware identity")
     hosts.sort(key=lambda host: host.machine_id or "")
     return Inventory(hosts=tuple(hosts))
+
+
+def normalize_rack(machines, racks, identities, rack, known_racks):
+    """A complete MAAS response can revoke one invalid/missing host, not its rack.
+
+    Transport failures are handled outside this function and never become empty
+    snapshots. Successful responses must prove each host's identity and rack tag.
+    Missing/ambiguous host observations confer no routing authorization.
+    """
+    by_machine = {machine.get("system_id"): machine for machine in machines}
+    if len(by_machine) != len(machines):
+        raise ValueError("Duplicate MAAS machine ID")
+    bindings = dict(known_racks)
+    valid = []
+    for allocation in identities:
+        machine = by_machine.get(allocation["machine_id"])
+        if machine is None:
+            continue
+        tags = [
+            t.removeprefix("rack-") for t in machine.get("tag_names", []) if t.startswith("rack-")
+        ]
+        if tags != [rack] or not machine.get("hardware_uuid"):
+            continue
+        # Validate one record before including it in the complete rack snapshot.
+        # Global routing-identity conflicts are rejected by the caller first.
+        try:
+            normalize([machine], racks, [allocation])
+        except (ValueError, KeyError):
+            continue
+        valid.append(allocation)
+        bindings[allocation["machine_id"]] = rack
+    result = normalize(machines, racks, valid)
+    return result.model_copy(update={"rack": rack}), bindings
+
+
+def restrict_cached_inventory(previous, racks, identities):
+    """While MAAS is unavailable, apply removals but never grant new identities."""
+    allocations = {row["machine_id"]: row for row in identities}
+    profile = next((row for row in racks if row["id"] == previous.rack), None)
+    peers = tuple(Peer.model_validate(row) for row in profile["peers"]) if profile else ()
+    retained = []
+    for host in previous.hosts or ():
+        allocation = allocations.get(host.machine_id)
+        if (
+            allocation is None
+            or str(host.router_id) != allocation["router_id"]
+            or host.local_asn != allocation["local_asn"]
+        ):
+            continue
+        retained.append(
+            host.model_copy(
+                update={"peers": tuple(peer for peer in host.peers or () if peer in peers)}
+            )
+        )
+    return previous.model_copy(
+        update={"hosts": None if previous.hosts is None else tuple(retained)}
+    )

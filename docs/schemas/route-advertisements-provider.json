@@ -70,6 +70,42 @@
   },
   "description": "None means unknown; an explicit empty tuple is an authoritative withdrawal.",
   "properties": {
+    "rack": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Rack"
+    },
+    "machine_id": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Machine Id"
+    },
+    "domain": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Domain"
+    },
     "advertisements": {
       "anyOf": [
         {

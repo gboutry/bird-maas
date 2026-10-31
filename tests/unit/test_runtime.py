@@ -2,8 +2,9 @@ import subprocess
 from unittest.mock import Mock
 
 import pytest
-from maas_bird import runtime
-from maas_bird.resolver import resolve
+
+from tests.prototype import runtime
+from tests.prototype.resolver import resolve
 
 
 def protocols(extended=True, established=True):

@@ -18,6 +18,15 @@ def observe(configured: list[dict]) -> Attachments:
         if identity is None:
             raise ValueError("Configured card serial is not present on this DPU")
         coordinates = Function.model_validate(item["function"])
+        # DPU representor coordinates and host PCI coordinates are different
+        # namespaces. The provisioning owner must declare their mapping explicitly.
+        host_coordinates = Function.model_validate(item.get("host_function", item["function"]))
+        if (
+            host_coordinates.controller != 0
+            or host_coordinates.pf is None
+            or host_coordinates.vf is None
+        ):
+            raise ValueError("Use explicit canonical host PF/VF coordinates")
         matches = []
         for key, port in ports.get("port", {}).items():
             pci = key.split("/", 2)[1] if key.startswith("pci/") else None
@@ -47,7 +56,8 @@ def observe(configured: list[dict]) -> Attachments:
                 ready = bridge == uplink_bridge and item["vlan"] in json.loads(trunks)
         attachment = Attachment(
             id=item["id"],
-            function=coordinates,
+            function=host_coordinates,
+            observed_function=coordinates,
             domain=item["domain"],
             vlan=item["vlan"],
             chassis_id=chassis,

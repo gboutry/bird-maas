@@ -3,8 +3,9 @@ import json
 
 import pytest
 from maas_bird.models import Advertisements
-from maas_bird.render import render
-from maas_bird.resolver import InvalidIntent, NotReady, resolve
+
+from tests.prototype.render import render
+from tests.prototype.resolver import InvalidIntent, NotReady, resolve
 
 
 def test_contexts_use_verified_host_numa_and_keep_both_adjacent_paths(numa_inputs):

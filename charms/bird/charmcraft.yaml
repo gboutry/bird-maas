@@ -23,8 +23,8 @@ parts:
 name: bird
 title: Bird
 summary: Manage unnumbered host BGP and BFD with validated attachment inventory.
-description: Principal machine charm owning host BIRD routing domains and explicit
-  source-policy guards. Does not provision interfaces, addresses or TORs.
+description: Principal machine charm owning host BIRD routing domains and explicit source-policy
+  guards. Does not provision interfaces, addresses or TORs.
 requires:
   inventory:
     interface: machine-inventory
@@ -38,28 +38,14 @@ requires:
     optional: false
 config:
   options:
+    rack:
+      type: string
+      default: ''
+      description: Physical rack ID. Deploy a separate application for each rack.
     enabled:
       type: boolean
       description: Explicitly enable package installation and owned routing service.
       default: false
-    routing-domain:
-      type: string
-      description: Attachment and advertisement domain to consume.
-      default: storage-public
-    kernel-table:
-      type: int
-      description: Exclusive IPv4 kernel table >=1000; policy rules are externally
-        managed.
-      default: 3100
-    import-prefixes:
-      type: string
-      description: Comma-separated exact IPv4 prefixes accepted from TORs.
-      default: ''
-    export-allowlist:
-      type: string
-      description: Comma-separated IPv4 networks within which local /32 exports are
-        authorized.
-      default: ''
     bgp-credentials:
       type: string
       description: Juju secret ID containing session-id to BGP password entries.
@@ -84,19 +70,29 @@ config:
       type: int
       description: BGP keepalive interval in seconds.
       default: 3
-    routing-contexts:
-      type: string
-      default: '[]'
-      description: JSON array of id, numa_node, table, rule_priority and source /32
-        prefixes. Empty preserves legacy externally managed policy.
     protected-prefixes:
       type: string
       default: ''
-      description: Comma-separated management/replication IPv4 networks. Required
-        with NUMA contexts; public destinations must not overlap these.
+      description: Management IPv4 prefixes that no routing domain may import. Managed source VIPs
+        never fall back to the main table; ordinary management sources retain their existing routes.
     routing-domains:
       type: string
       default: '[]'
-      description: JSON array of domain id, import_prefixes, export_allowlist and
-        per-host NUMA contexts. Optional per-domain BGP/BFD timers override global
-        defaults. Nonempty selects multiple-domain mode; do not also set routing-contexts.
+      description: JSON array of routing domains with approved imports/exports and per-host NUMA
+        contexts. Static source-wide rules and guards must be provisioned by the host network owner.
+        This is the only supported routing model.
+actions:
+  inspect:
+    description: Show the accepted routing plan without credentials or full daemon configuration.
+  plan:
+    description: Validate and show proposed host routing intent without applying it.
+  reconcile:
+    description: Reconcile the current authoritative rack and host inputs.
+  decommission:
+    description: Remove only this unit's BIRD service, retaining externally owned network policy.
+    params:
+      confirm:
+        type: boolean
+        default: false
+    required:
+    - confirm

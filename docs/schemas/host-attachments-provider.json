@@ -25,6 +25,17 @@
           ],
           "default": null
         },
+        "observed_function": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Function"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
         "domain": {
           "anyOf": [
             {
@@ -202,6 +213,18 @@
   },
   "description": "Provider unit data, one document per DPU unit.",
   "properties": {
+    "rack": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Rack"
+    },
     "cards": {
       "anyOf": [
         {

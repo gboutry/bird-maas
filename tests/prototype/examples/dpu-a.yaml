@@ -1,0 +1,13 @@
+dpu-attachments:
+  # Example intent, not a claim that these VLAN/uplink mappings exist in the live lab.
+  attachments: |
+    [{
+      "serial":"d0d69bc89789ef118000b8e9243735f6",
+      "id":"path-a",
+      "function":{"controller":0,"pf":0,"vf":63},
+      "domain":"storage-public",
+      "vlan":3414,
+      "uplink":"p0",
+      "chassis_id":"00:00:00:00:a1:01",
+      "peer_link_local":"fe80::1"
+    }]

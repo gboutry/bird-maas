@@ -17,10 +17,10 @@ from hypothesis import strategies as st
 from hypothesis.stateful import RuleBasedStateMachine, invariant, precondition, rule
 from maas_bird.interfaces import decode, encode
 from maas_bird.models import Advertisements, MultiDomainPlan
-from maas_bird.policy import PolicyError, PolicyRouting, layout
-from maas_bird.resolver import InvalidIntent, resolve
 
 from tests.policy_model import InjectedFailure, KernelModel
+from tests.prototype.policy import PolicyError, PolicyRouting, layout
+from tests.prototype.resolver import InvalidIntent, resolve
 from tests.strategies import advertisement_documents, fresh_domain_inputs, routing_inputs
 
 # Four guards plus eight source/destination rules in the fixed journal fixture.

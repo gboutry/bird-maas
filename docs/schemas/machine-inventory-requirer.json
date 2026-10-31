@@ -1,7 +1,7 @@
 {
-  "description": "Consumer unit data; the provider verifies against actual MAAS inventory.",
+  "description": "Consumer application selects one immutable rack relation scope.",
   "properties": {
-    "system_uuid": {
+    "rack": {
       "anyOf": [
         {
           "type": "string"
@@ -11,9 +11,9 @@
         }
       ],
       "default": null,
-      "title": "System Uuid"
+      "title": "Rack"
     }
   },
-  "title": "InventoryRequest",
+  "title": "RackRequest",
   "type": "object"
 }

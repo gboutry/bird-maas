@@ -6,10 +6,11 @@ import pytest
 import yaml
 from maas_bird.interfaces import decode, encode
 from maas_bird.models import Advertisements, Attachments, Inventory, MultiDomainPlan, RoutingDomain
-from maas_bird.policy import layout
-from maas_bird.render import render
-from maas_bird.resolver import InvalidIntent, NotReady, resolve
 from pydantic import TypeAdapter
+
+from tests.prototype.policy import layout
+from tests.prototype.render import render
+from tests.prototype.resolver import InvalidIntent, NotReady, resolve
 
 
 def test_domains_keep_sessions_routes_and_timers_separate(domain_inputs):
@@ -129,7 +130,7 @@ def test_domain_withdrawal_does_not_withdraw_other_domain(domain_inputs):
 def test_concrete_relation_and_config_examples_match_exported_schemas():
 
     root = Path(__file__).resolve().parents[2]
-    examples = root / "examples/multiple-domains"
+    examples = root / "tests/prototype/examples/multiple-domains"
     for name, model, schema in [
         ("inventory", Inventory, "machine-inventory-provider"),
         ("attachments-card1", Attachments, "host-attachments-provider"),

@@ -2,17 +2,24 @@
 
 import json
 import os
+import re
 import subprocess
 import sys
 import time
 from pathlib import Path
 
 import pytest
-from maas_bird import runtime
-from maas_bird.policy import PolicyError, PolicyRouting
-from maas_bird.render import quoted, render
-from maas_bird.resolver import resolve
+from maas_bird import authority, external_policy, rack_runtime
+from maas_bird.rack_runtime import RackService
+from maas_bird.render import render_rack
+from maas_bird.resolver import resolve_rack as rack_compiler
 from maas_bird.runtime import accepted
+
+from tests.factories import rack_inputs
+from tests.prototype import runtime
+from tests.prototype.policy import PolicyError, PolicyRouting
+from tests.prototype.render import quoted, render
+from tests.prototype.resolver import resolve
 
 BIRD = Path(os.environ["BIRD_BINARY"]).resolve()
 BIRDC = BIRD.with_name("birdc")
@@ -302,10 +309,15 @@ def test_numa_forwarding_bfd_failover_and_fail_closed(lab, numa_inputs, interval
             "BFD did not withdraw the silent failed path",
         )
         assert "Up" in lab.cli("host", "show", "bfd", "sessions")
-        assert (
-            "bfd session down"
-            in lab.cli("host", "show", "protocols", "all", f"uplink_{n}").lower()
-        )
+        bfd = lab.cli("host", "show", "bfd", "sessions")
+        rows = [line.split() for line in bfd.splitlines() if line.strip().startswith("fe80:")]
+        assert not any(row[1] == f"fabric{n + 1}" and row[2] == "Up" for row in rows)
+        assert any(row[1] == f"fabric{2 - n}" and row[2] == "Up" for row in rows)
+        protocols = lab.cli("host", "show", "protocols", "all", f"uplink_{n}")
+        assert not re.search(rf"(?m)^uplink_{n}\s+BGP.*Established", protocols)
+        # Both BFD endpoints can detect the blackhole. A TOR's Cease can win the
+        # race with the host's own BFD notification, so inspect actual session
+        # state and surviving packets rather than the transient last-error text.
         lab.send(source, "203.0.113.9", "mb-dst", f"recv{1 - n}")
         lab.fault(n, False)
         wait(
@@ -616,16 +628,22 @@ def prepare_domains(lab, domain_inputs):
     return resolve(**domain_inputs)
 
 
-def start_domains(lab, plan):
-    lab.bird("mb-host", render(plan, {s.id: "example" for s in plan.sessions}), "host")
+def start_domains(lab, plan, renderer=render):
+    lab.bird("mb-host", renderer(plan, {s.id: "example" for s in plan.sessions}), "host")
     for n in range(2):
         config = f"""router id 10.255.0.{n + 1};
 log stderr all;
 protocol device {{}}
 protocol kernel main_kernel {{ learn; ipv4 {{ import all; export all; }}; }}
 protocol bfd fabric {{
- interface "up{n}" {{ min tx interval 50 ms; min rx interval 50 ms; multiplier 3; }};
- interface "repup{n}" {{ min tx interval 300 ms; min rx interval 300 ms; multiplier 3; }};
+ interface "up{n}" {{
+  min tx interval {plan.domains[0].bfd_tx} ms;
+  min rx interval {plan.domains[0].bfd_rx} ms; multiplier 3;
+ }};
+ interface "repup{n}" {{
+  min tx interval {plan.domains[1].bfd_tx} ms;
+  min rx interval {plan.domains[1].bfd_rx} ms; multiplier 3;
+ }};
 }}
 """
         for name, interface in [("public", f"up{n}"), ("replica", f"repup{n}")]:
@@ -903,3 +921,163 @@ def test_tos_foreign_guard_is_rejected_without_partial_cleanup(lab, numa_inputs)
     with pytest.raises(PolicyError, match="Foreign route"):
         policy.remove()
     assert snapshot(lab) == before
+
+
+@pytest.mark.parametrize("interval", [50, 300])
+def test_rack_withdrawal_under_silent_failure_preserves_surviving_sessions(
+    lab, domain_inputs, monkeypatch, interval
+):
+    """Native BIRD reconfiguration and packets; systemd/chown remain doubled.
+
+    Keep the revoked address on lo. Prove peer withdrawal, source-wide fail-closed
+    routing, the surviving sessions' unchanged state timestamps and both domains'
+    packet delivery. This is neither a hardware offload nor convergence benchmark.
+    """
+    prepare_domains(lab, domain_inputs)
+    inputs = rack_inputs(domain_inputs)
+    plan = rack_compiler(**inputs)
+    plan = plan.model_copy(
+        update={
+            "domains": tuple(
+                d.model_copy(update={"bfd_tx": interval, "bfd_rx": interval}) for d in plan.domains
+            )
+        }
+    )
+    for context in plan.contexts:
+        lab.ip(
+            "mb-host",
+            "route",
+            "add",
+            "unreachable",
+            "default",
+            "table",
+            str(context.table),
+            "proto",
+            "196",
+            "metric",
+            "42760",
+        )
+        for offset, source in enumerate(sorted(context.sources)):
+            lab.ip(
+                "mb-host",
+                "rule",
+                "add",
+                "priority",
+                str(context.rule_priority + offset),
+                "from",
+                str(source),
+                "table",
+                str(context.table),
+                "protocol",
+                "196",
+            )
+    token = "namespace_accepted"
+    start_domains(
+        lab,
+        plan,
+        renderer=lambda p, keys: render_rack(p, keys) + f"\ndefine mb_candidate_{token} = 1;\n",
+    )
+    service = RackService(lab.directory / "owned", owner="namespace-owner")
+    service.directory.mkdir(parents=True)
+    service.marker.write_text("namespace-owner\n")
+    passwords = {s.id: "example" for s in plan.sessions}
+    service.config.parent.mkdir(parents=True)
+    service._producers = {}
+    service._credentials = service._credential_hashes(plan, passwords)
+    bundle = service._commit(plan, render_rack(plan, passwords), token)
+    service.config.write_text(bundle["configuration"])
+
+    def execute(args, check=True):
+        return lab.run([str(BIRD), *args[1:]] if args[0] == "bird" else args, check)
+
+    def control(*args, check=True):
+        return subprocess.run(
+            [str(BIRDC), "-s", str(lab.runtime / "host.ctl"), *args],
+            capture_output=True,
+            text=True,
+            timeout=5,
+            check=check,
+        )
+
+    monkeypatch.setattr(rack_runtime, "run", execute)
+    monkeypatch.setattr(external_policy, "host_uuid", lambda: "host-uuid")
+    monkeypatch.setattr(service, "_control", control)
+    monkeypatch.setattr(service, "_active", lambda: True)
+    monkeypatch.setattr(
+        service,
+        "_prepare_rack",
+        lambda p: external_policy.validate(external_policy.expected_policy(p), lab.run),
+    )
+    monkeypatch.setattr(service, "_write_config", lambda path, text: path.write_text(text))
+    stop = []
+    monkeypatch.setattr(service, "stop", lambda: stop.append(True))
+    wait(
+        lambda: service.health(plan)["established"] == 4,
+        "All four native BGP/BFD sessions did not establish",
+    )
+    service.apply_plan(plan, passwords)
+    vip = "10.60.11.11/32"
+    wait(
+        lambda: "[public " in lab.cli("tor1", "show", "route", vip, "all"),
+        "Peer did not learn the origin",
+    )
+    attributes = lab.cli("tor1", "show", "route", vip, "all")
+    assert re.search(r"\(4200001011,\s*3100,\s*0\)", attributes)
+    lab.send("10.60.11.11", "203.0.113.9", "mb-dst", "recv0")
+    lab.send("172.22.0.11", "198.51.100.9", "mb-rdst", "recv0")
+    # These live management destinations exist. A managed VIP must not use them
+    # as an accidental escape path, while ordinary management sources still work.
+    blocked_datagram(lab, "10.60.11.11", "172.21.0.2")
+    lab.send("172.20.0.1", "172.21.0.2", "mb-mgmt", "managed")
+    lab.fault(0, True)
+    replica_fault(lab, 0, True)
+    wait(
+        lambda: service.health(plan)["established"] == 2,
+        "Silent failure did not remove only the failed adjacencies",
+    )
+    wait(
+        lambda: domain_dev(lab, "10.60.11.11", "203.0.113.9") == "fabric2",
+        "Public fallback missing",
+    )
+    wait(
+        lambda: domain_dev(lab, "172.22.0.11", "198.51.100.9") == "replica2",
+        "Replica fallback missing",
+    )
+    before = [
+        line
+        for line in lab.cli("tor1", "show", "protocols", "all").splitlines()
+        if re.match(r"(?:public|replica)\s+BGP", line)
+    ]
+    assert len(before) == 2 and all("Established" in line for line in before)
+    time.sleep(1.2)  # Native state timestamps have one-second resolution.
+    documents = [
+        doc.model_copy(
+            update={
+                "advertisements": tuple(
+                    ad.model_copy(update={"ready": False}) if str(ad.prefix) == vip else ad
+                    for ad in doc.advertisements
+                )
+            }
+        )
+        for doc in inputs["advertisements"]
+    ]
+    restricted = authority.restrict(plan, inputs["config"], inputs["inventory"], documents)
+    service.apply_plan(restricted, passwords, restrictive=True)
+    wait(
+        lambda: (
+            re.search(r"(?m)^" + re.escape(vip) + r"\s", lab.cli("tor1", "show", "route", "all"))
+            is None
+        ),
+        "Revoked route remained advertised",
+    )
+    after = [
+        line
+        for line in lab.cli("tor1", "show", "protocols", "all").splitlines()
+        if re.match(r"(?:public|replica)\s+BGP", line)
+    ]
+    assert before == after
+    assert stop == []
+    assert "10.60.11.11" in lab.ip("mb-host", "-4", "addr", "show", "lo").stdout
+    lab.send("10.60.11.12", "203.0.113.9", "mb-dst", "recv1")
+    lab.send("172.22.0.11", "198.51.100.9", "mb-rdst", "recv1")
+    lab.send("172.20.0.1", "172.21.0.2", "mb-mgmt", "managed")

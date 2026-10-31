@@ -11,9 +11,13 @@ import time
 from pathlib import Path
 
 import pytest
-from maas_bird import runtime
-from maas_bird.render import quoted, render
-from maas_bird.resolver import resolve
+from maas_bird.render import render_rack
+from maas_bird.resolver import resolve_rack
+
+from tests.factories import rack_inputs
+from tests.prototype import runtime
+from tests.prototype.render import quoted, render
+from tests.prototype.resolver import resolve
 
 BIRD = Path(os.environ["BIRD_BINARY"]).resolve()
 BIRDC = BIRD.with_name("birdc")
@@ -293,3 +297,27 @@ def test_withdrawal_acceptance_failure_cannot_restore_native_route(tmp_path, mon
         assert not (service.directory / "candidate.conf").exists()
     finally:
         stop()
+
+
+@pytest.mark.parametrize("mode", ["full", "zero-export", "withdrawn-domain"])
+def test_supported_rack_configuration_native_parser(tmp_path, mode):
+    plan = resolve_rack(**rack_inputs())
+    if mode != "full":
+        domains = tuple(
+            d.model_copy(
+                update={
+                    "prefixes": (),
+                    "contexts": tuple(c.model_copy(update={"exports": ()}) for c in d.contexts),
+                    **(
+                        {"sessions": (), "imports": ()}
+                        if mode == "withdrawn-domain" and index == 0
+                        else {}
+                    ),
+                }
+            )
+            for index, d in enumerate(plan.domains)
+        )
+        plan = plan.model_copy(update={"domains": domains})
+    path = tmp_path / "rack.conf"
+    path.write_text(render_rack(plan, {s.id: "test-only" for s in plan.sessions}))
+    subprocess.run([str(BIRD), "-p", "-c", str(path)], check=True, capture_output=True)

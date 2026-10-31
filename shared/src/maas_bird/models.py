@@ -37,13 +37,24 @@ class Host(Record):
 class Inventory(Record):
     """Provider application data. Only the provider leader writes this."""
 
+    rack: str | None = None
     hosts: tuple[Host, ...] | None = None
+
+
+class RackHeader(Record):
+    rack: str | None = None
 
 
 class InventoryRequest(Record):
     """Consumer unit data; the provider verifies against actual MAAS inventory."""
 
     system_uuid: str | None = None
+
+
+class RackRequest(Record):
+    """Consumer application selects one immutable rack relation scope."""
+
+    rack: str | None = None
 
 
 class Function(Record):
@@ -55,6 +66,7 @@ class Function(Record):
 class Attachment(Record):
     id: str | None = None
     function: Function | None = None
+    observed_function: Function | None = None
     domain: str | None = None
     vlan: Annotated[int, Field(strict=True, ge=1, le=4094)] | None = None
     chassis_id: str | None = None
@@ -77,6 +89,7 @@ class Card(Record):
 class Attachments(Record):
     """Provider unit data, one document per DPU unit."""
 
+    rack: str | None = None
     cards: tuple[Card, ...] | None = None
 
 
@@ -91,6 +104,9 @@ class Advertisement(Record):
 class Advertisements(Record):
     """None means unknown; an explicit empty tuple is an authoritative withdrawal."""
 
+    rack: str | None = None
+    machine_id: str | None = None
+    domain: str | None = None
     advertisements: tuple[Advertisement, ...] | None = None
 
 
@@ -100,6 +116,11 @@ class Session(Record):
     peer: IPv6Address
     local: IPv6Address
     remote_asn: Asn
+    identity: Identity | None = None
+    peer_id: str | None = None
+    function: Function | None = None
+    vlan: int | None = None
+    chassis_id: str | None = None
     numa_node: int | None = None
 
 

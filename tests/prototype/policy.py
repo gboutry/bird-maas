@@ -3,25 +3,26 @@
 import json
 
 from maas_bird.models import MultiDomainPlan, Plan, routing_plans
-from maas_bird.policy_journal import (
+
+from tests.prototype.policy_journal import (
     GUARD_METRIC as GUARD_METRIC,
 )
-from maas_bird.policy_journal import (
+from tests.prototype.policy_journal import (
     PROTOCOL as PROTOCOL,
 )
-from maas_bird.policy_journal import (
+from tests.prototype.policy_journal import (
     PolicyError as PolicyError,
 )
-from maas_bird.policy_journal import (
+from tests.prototype.policy_journal import (
     PolicyJournal,
 )
-from maas_bird.policy_journal import (
+from tests.prototype.policy_journal import (
     guard_key as guard_key,
 )
-from maas_bird.policy_journal import (
+from tests.prototype.policy_journal import (
     rule_key as rule_key,
 )
-from maas_bird.policy_journal import (
+from tests.prototype.policy_journal import (
     rule_network as rule_network,
 )
 

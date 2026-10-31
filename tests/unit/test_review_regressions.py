@@ -14,16 +14,17 @@ from unittest.mock import Mock, patch
 import pytest
 from hypothesis import given, settings
 from hypothesis import strategies as st
-from maas_bird import runtime
+from maas_bird import rack_runtime
 from maas_bird.interfaces import encode
 from maas_bird.models import Inventory
-from maas_bird.policy import PolicyError, PolicyRouting, guard_key
-from maas_bird.resolver import AuthorizationWithdrawn, NotReady, resolve
-from maas_bird.service_units import bird_unit, policy_unit
 from ops import testing
 
 from tests.factories import make_inputs
 from tests.policy_model import InjectedFailure, KernelModel
+from tests.prototype import runtime
+from tests.prototype.policy import PolicyError, PolicyRouting, guard_key
+from tests.prototype.resolver import AuthorizationWithdrawn, NotReady, resolve
+from tests.prototype.service_units import bird_unit, policy_unit
 from tests.strategies import fresh_domain_inputs
 
 
@@ -298,45 +299,61 @@ def test_inventory_withdrawal_invalidates_before_stopping(charm_context, monkeyp
     sequence = []
     service.invalidate.side_effect = lambda: sequence.append("invalidate")
     service.stop.side_effect = lambda: sequence.append("stop")
-    monkeypatch.setattr(runtime, "BirdService", lambda **kwargs: service)
+    monkeypatch.setattr(rack_runtime, "RackService", lambda **kwargs: service)
     monkeypatch.setattr("maas_bird.discovery.host_uuid", lambda: "host-uuid")
-    relation = testing.Relation("inventory", remote_app_data=encode(Inventory(hosts=())))
+    relation = testing.Relation("inventory", remote_app_data=encode(Inventory(rack="a", hosts=())))
     ctx = charm_context("bird")
     out = ctx.run(
         ctx.on.relation_changed(relation),
-        testing.State(config={"enabled": True}, relations={relation}),
+        testing.State(config={"enabled": True, "rack": "a"}, relations={relation}),
     )
     assert sequence == ["invalidate", "stop"]
     assert isinstance(out.unit_status, testing.BlockedStatus)
-    service.apply.assert_not_called()
+    service.apply_plan.assert_not_called()
 
 
 def test_inventory_removal_stops_even_without_successful_activation(charm_context, monkeypatch):
     service = Mock()
-    monkeypatch.setattr(runtime, "BirdService", lambda **kwargs: service)
+    monkeypatch.setattr(rack_runtime, "RackService", lambda **kwargs: service)
     relation = testing.Relation("inventory")
     ctx = charm_context("bird")
     ctx.run(
         ctx.on.relation_broken(relation),
-        testing.State(config={"enabled": True}, relations={relation}),
+        testing.State(config={"enabled": True, "rack": "a"}, relations={relation}),
     )
     service.invalidate.assert_called_once()
     service.stop.assert_called_once()
 
 
 @pytest.mark.parametrize("endpoint", ["inventory", "attachments", "advertisements"])
-def test_failed_activation_still_remembers_producer_removal(
-    inputs, charm_context, monkeypatch, endpoint
+def test_failed_activation_then_producer_removal_cannot_resurrect_exports(
+    rack_environment, charm_context, monkeypatch, endpoint
 ):
+    """Use the actual filesystem transaction, not a mock that skips its cleanup.
+
+    The new lifecycle may retain/start safe control-plane sessions with zero VIP
+    origins. The invariant is no unaccepted or withdrawn export, not stopping all
+    unrelated domains whenever a workload producer disappears.
+    """
+    inputs, plan, passwords, service, host = rack_environment
+    baseline = host.kernel.snapshot()
     monkeypatch.setattr("maas_bird.discovery.host_uuid", lambda: "host-uuid")
     monkeypatch.setattr("maas_bird.discovery.links", lambda: inputs["local_links"])
     monkeypatch.setattr(
         "maas_bird.discovery.command",
-        lambda _: '[{"addr_info":[{"local":"10.60.11.11","prefixlen":32}]}]',
+        lambda _: json.dumps(
+            [
+                {
+                    "addr_info": [
+                        {"local": str(p.network_address), "prefixlen": 32}
+                        for c in plan.contexts
+                        for p in c.sources
+                    ]
+                }
+            ]
+        ),
     )
-    service = Mock()
-    service.apply.side_effect = runtime.RuntimeErrorBase("acceptance query failed")
-    monkeypatch.setattr(runtime, "BirdService", lambda **kwargs: service)
+    monkeypatch.setattr(rack_runtime, "RackService", lambda **kwargs: service)
     relations = {
         "inventory": testing.Relation("inventory", remote_app_data=encode(inputs["inventory"])),
         "attachments": testing.Relation(
@@ -344,25 +361,38 @@ def test_failed_activation_still_remembers_producer_removal(
             remote_units_data={n: encode(doc) for n, doc in enumerate(inputs["attachments"])},
         ),
         "advertisements": testing.Relation(
-            "advertisements", remote_units_data={0: encode(inputs["advertisements"][0])}
+            "advertisements",
+            remote_units_data={n: encode(doc) for n, doc in enumerate(inputs["advertisements"])},
         ),
     }
-    secret = testing.Secret({"path1": "one", "path2": "two"})
+    secret = testing.Secret(passwords)
     ctx = charm_context("bird")
     state = testing.State(
         config=inputs["config"] | {"enabled": True, "bgp-credentials": secret.id},
         relations=set(relations.values()),
         secrets={secret},
     )
+    host.fail_control = ("show", "symbols")
     failed = ctx.run(ctx.on.config_changed(), state)
     assert isinstance(failed.unit_status, testing.BlockedStatus)
-    service.apply.assert_called_once()
-    service.reset_mock()
+    assert service.state() is not None and service.state().prefixes == ()
+    assert all(
+        f'route {prefix} via "lo";' not in service.config.read_text() for prefix in plan.prefixes
+    )
+    host.fail_control = None
     removed = ctx.run(ctx.on.relation_broken(failed.get_relation(relations[endpoint].id)), failed)
-    assert removed.unit_status == testing.BlockedStatus("A trusted routing producer was removed")
-    service.invalidate.assert_called_once()
-    service.stop.assert_called_once()
-    service.apply.assert_not_called()
+    if endpoint == "inventory":
+        assert isinstance(removed.unit_status, testing.BlockedStatus)
+        assert not host.active and not service.config.exists()
+    elif service.config.exists():
+        assert service.state().prefixes == ()
+        assert all(
+            f'route {prefix} via "lo";' not in service.config.read_text()
+            for prefix in plan.prefixes
+        )
+    else:
+        assert not host.active
+    assert host.kernel.snapshot() == baseline
 
 
 def test_preparation_retries_systemd_reload_after_written_units(tmp_path, monkeypatch):
