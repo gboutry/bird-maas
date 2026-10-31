@@ -38,10 +38,6 @@ requires:
     optional: true
 config:
   options:
-    rack:
-      type: string
-      default: ''
-      description: Physical rack ID. Deploy a separate application for each rack.
     enabled:
       type: boolean
       description: Explicitly enable package installation and owned routing service.

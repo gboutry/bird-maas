@@ -9,6 +9,7 @@ from maas_bird.models import (
     Inventory,
     InventoryRequest,
     RackRequest,
+    Record,
     RoutingDomain,
 )
 from pydantic import TypeAdapter
@@ -18,7 +19,8 @@ ROOT = Path(__file__).resolve().parents[1]
 for name, model in [
     ("machine-inventory-provider", Inventory),
     ("machine-inventory-unit-request", InventoryRequest),
-    ("machine-inventory-requirer", RackRequest),
+    ("machine-inventory-requirer", Record),
+    ("host-attachments-requirer", RackRequest),
     ("host-attachments-provider", Attachments),
     ("route-advertisements-provider", Advertisements),
 ]:

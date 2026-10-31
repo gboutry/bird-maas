@@ -249,7 +249,10 @@ juju integrate dpu-rack-a:attachments bird-rack-a:attachments
 
 A provider can also live in a separate model using a private cross-model offer.
 Limit offer access to the intended consumer; do not expose inventory credentials.
-Integrate only applications belonging to the same rack.
+Integrate only applications belonging to the same rack. MAAS determines that
+rack from every BIRD unit's native hardware UUID and `rack-<id>` tag; there is no
+`rack` option on either consumer charm. Mixed-rack applications are blocked.
+The DPU observer receives the derived delivery scope through its BIRD relation.
 
 Next, integrate your actual workload's `route-advertisements` provider with
 `bird-rack-a:advertisements`. That provider must publish the host identity,

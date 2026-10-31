@@ -32,17 +32,38 @@ class BirdCharm(ops.CharmBase):
         return RackService(owner=f"{self.model.uuid}:{self.unit.name}")
 
     def _inventory(self, event, *, publish_requests=True):
-        rack = rack_id(self.config["rack"])
         inventory_relations = list(relations(self, "inventory", event))
         if len(inventory_relations) != 1:
-            raise NotReady("Waiting for one rack inventory relation")
+            raise NotReady("Waiting for one authoritative inventory relation")
         relation = inventory_relations[0]
-        if publish_requests:
-            if self.unit.is_leader():
-                publish(relation, self.app, RackRequest(rack=rack))
-        uid = discovery.host_uuid()
+        try:
+            uid = discovery.host_uuid()
+        except (OSError, discovery.DiscoveryError):
+            if publish_requests:
+                publish(relation, self.unit, InventoryRequest())
+            raise
         if publish_requests:
             publish(relation, self.unit, InventoryRequest(system_uuid=uid))
+            if self.unit.is_leader():
+                publish(relation, self.app, RackRequest())  # Retire old consumer-selected scope.
+        inventory = application_data(relation, Inventory)
+        if inventory.scope_state in {"conflict", "revoked"} or inventory.hosts == ():
+            raise AuthorizationWithdrawn("MAAS application scope was withdrawn")
+        if inventory.scope_state not in {"ready", "pending"} or inventory.rack is None:
+            raise NotReady("Waiting for MAAS-derived application scope")
+        rack = rack_id(inventory.rack)
+        previous = self._service().state()
+        if previous is not None and previous.host.system_uuid != uid:
+            raise AuthorizationWithdrawn("Local hardware identity changed")
+        if previous is not None and previous.host.rack != rack:
+            raise ScopeError("Accepted rack scope changed; reintegrate inventory")
+        if uid not in (inventory.member_uuids or ()):
+            if previous is not None:
+                raise AuthorizationWithdrawn("Unit membership withdrawn from MAAS scope")
+            raise NotReady("Waiting for this unit's authoritative MAAS membership")
+        if publish_requests and self.unit.is_leader() and inventory.scope_state == "ready":
+            for attachment in relations(self, "attachments", event):
+                publish(attachment, self.app, RackRequest(rack=rack))
         return rack, relation, uid
 
     def _inputs(self, event, *, publish_requests=True):
@@ -102,7 +123,7 @@ class BirdCharm(ops.CharmBase):
                 # Disabled deployment can prove real inventory delivery without
                 # packages, attachment probes, credentials or routing activation.
                 self._inventory(event)
-            except (NotReady, ValueError, discovery.DiscoveryError):
+            except (NotReady, ValueError, OSError, discovery.DiscoveryError):
                 pass
             self.unit.status = ops.BlockedStatus(
                 "Routing disabled; provision host policy then enable"

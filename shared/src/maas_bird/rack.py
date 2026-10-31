@@ -19,7 +19,7 @@ class ScopeError(ValueError):
 
 def rack_id(value: object) -> str:
     if not isinstance(value, str) or not re.fullmatch(r"[a-zA-Z0-9_-]{1,48}", value):
-        raise ScopeError("Set rack to a safe physical rack ID")
+        raise ScopeError("Rack identity must be a safe physical rack ID")
     return value
 
 

@@ -474,3 +474,18 @@ def ovs_snapshot_text(binding):
         ]
     )
     return "\n".join(json.dumps(document) for document in documents)
+
+
+def authoritative_inventory(inventory):
+    """Build the provider's complete, MAAS-authorized application fixture."""
+    return inventory.model_copy(
+        update={
+            "scope_state": "ready",
+            "member_uuids": tuple(sorted(h.system_uuid for h in inventory.hosts or ())),
+        }
+    )
+
+
+def consumer_config(config):
+    """Rack authority belongs to MAAS, never a consumer application option."""
+    return {key: value for key, value in config.items() if key != "rack"}

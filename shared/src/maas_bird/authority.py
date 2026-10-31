@@ -35,7 +35,11 @@ def restrict(
         matches = [h for h in inventory.hosts if h.system_uuid == host.system_uuid]
         if not matches:
             raise AuthorizationWithdrawn("Host routing identity withdrawn from inventory")
-        if len(matches) != 1 or matches[0].rack != config["rack"]:
+        if (
+            len(matches) != 1
+            or matches[0].rack != inventory.rack
+            or inventory.rack != previous.host.rack
+        ):
             raise AuthorizationWithdrawn("Host inventory no longer authorizes this rack")
         host = matches[0]
     domains = [RoutingDomain.model_validate(d) for d in json.loads(config["routing-domains"])]

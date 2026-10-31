@@ -19,7 +19,7 @@ from maas_bird.interfaces import encode
 from maas_bird.models import Inventory
 from ops import testing
 
-from tests.factories import make_inputs
+from tests.factories import authoritative_inventory, consumer_config, make_inputs
 from tests.policy_model import InjectedFailure, KernelModel
 from tests.prototype import runtime
 from tests.prototype.policy import PolicyError, PolicyRouting, guard_key
@@ -305,7 +305,7 @@ def test_inventory_withdrawal_invalidates_before_stopping(charm_context, monkeyp
     ctx = charm_context("bird")
     out = ctx.run(
         ctx.on.relation_changed(relation),
-        testing.State(config={"enabled": True, "rack": "a"}, relations={relation}),
+        testing.State(config={"enabled": True}, relations={relation}),
     )
     assert sequence == ["invalidate", "stop"]
     assert isinstance(out.unit_status, testing.BlockedStatus)
@@ -319,7 +319,7 @@ def test_inventory_removal_stops_even_without_successful_activation(charm_contex
     ctx = charm_context("bird")
     ctx.run(
         ctx.on.relation_broken(relation),
-        testing.State(config={"enabled": True, "rack": "a"}, relations={relation}),
+        testing.State(config={"enabled": True}, relations={relation}),
     )
     service.invalidate.assert_called_once()
     service.stop.assert_called_once()
@@ -355,7 +355,9 @@ def test_failed_activation_then_producer_removal_cannot_resurrect_exports(
     )
     monkeypatch.setattr(rack_runtime, "RackService", lambda **kwargs: service)
     relations = {
-        "inventory": testing.Relation("inventory", remote_app_data=encode(inputs["inventory"])),
+        "inventory": testing.Relation(
+            "inventory", remote_app_data=encode(authoritative_inventory(inputs["inventory"]))
+        ),
         "attachments": testing.Relation(
             "attachments",
             remote_units_data={n: encode(doc) for n, doc in enumerate(inputs["attachments"])},
@@ -368,7 +370,7 @@ def test_failed_activation_then_producer_removal_cannot_resurrect_exports(
     secret = testing.Secret(passwords)
     ctx = charm_context("bird")
     state = testing.State(
-        config=inputs["config"] | {"enabled": True, "bgp-credentials": secret.id},
+        config=consumer_config(inputs["config"]) | {"enabled": True, "bgp-credentials": secret.id},
         relations=set(relations.values()),
         secrets={secret},
     )

@@ -36,11 +36,17 @@ class AuthorizationWithdrawn(InvalidIntent):
 def resolve_rack(uid, inventory, attachments, advertisements, local_links, config):
     if local_links is None:
         raise NotReady("Local link discovery is unavailable")
+    if inventory.scope_state in {"conflict", "revoked"}:
+        raise AuthorizationWithdrawn("MAAS application scope was withdrawn")
+    if inventory.scope_state == "pending":
+        raise NotReady("MAAS application membership is pending")
     mode = advertisement_mode(config)
-    if inventory.rack != config["rack"]:
-        raise InvalidIntent("Inventory relation does not match this application's rack")
+    if not isinstance(inventory.rack, str) or not re.fullmatch(
+        r"[a-zA-Z0-9_-]{1,48}", inventory.rack
+    ):
+        raise NotReady("Waiting for an authoritative inventory rack")
     host, peers = _resolve_host(uid, inventory)
-    if host.rack != config["rack"]:
+    if host.rack != inventory.rack:
         raise InvalidIntent("Host is placed in a different physical rack")
     raw = json.loads(config["routing-domains"])
     if not isinstance(raw, list) or not raw:

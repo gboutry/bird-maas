@@ -1,6 +1,7 @@
 """GET-only MAAS client with OAuth1 authentication and verified HTTPS."""
 
 from collections import Counter
+from dataclasses import dataclass
 from urllib.parse import urljoin, urlsplit
 
 import requests
@@ -11,6 +12,54 @@ from maas_bird.models import Host, Inventory, Peer
 
 class InventoryError(RuntimeError):
     pass
+
+
+@dataclass(frozen=True)
+class ApplicationScope:
+    """MAAS-derived application membership, never a consumer-selected rack."""
+
+    rack: str | None
+    members: tuple[str, ...]
+    state: str
+
+
+def application_scope(machines, racks, identities, requests, previous=None):
+    """Resolve every active unit before establishing an immutable rack scope.
+
+    An absent request is pending, not evidence of membership. A complete fresh
+    MAAS response proving invalid or mixed membership revokes the application.
+    Callers must not use this function to grant a scope from an API outage cache.
+    """
+    if not requests or any(not isinstance(uid, str) or not uid for uid in requests):
+        return ApplicationScope(previous, (), "pending")
+    members = tuple(sorted(uid.lower() for uid in requests))
+    if len(set(members)) != len(members):
+        return ApplicationScope(previous, members, "rejected")
+    approved_racks = {row["id"] for row in racks}
+    allocated = {row["machine_id"] for row in identities}
+    resolved = set()
+    for uid in members:
+        matches = [
+            row
+            for row in machines
+            if isinstance(row.get("hardware_uuid"), str) and row["hardware_uuid"].lower() == uid
+        ]
+        if len(matches) != 1 or matches[0].get("system_id") not in allocated:
+            return ApplicationScope(previous, members, "rejected")
+        tags = [
+            value.removeprefix("rack-")
+            for value in matches[0].get("tag_names", [])
+            if isinstance(value, str) and value.startswith("rack-")
+        ]
+        if len(tags) != 1 or tags[0] not in approved_racks:
+            return ApplicationScope(previous, members, "rejected")
+        resolved.add(tags[0])
+    if len(resolved) != 1:
+        return ApplicationScope(previous, members, "rejected")
+    rack = resolved.pop()
+    if previous is not None and previous != rack:
+        return ApplicationScope(previous, members, "changed")
+    return ApplicationScope(rack, members, "ready")
 
 
 class MaasClient:

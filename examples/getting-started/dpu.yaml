@@ -1,6 +1,5 @@
 # EXAMPLE ONLY: replace identities, placements, addresses and secret IDs.
 dpu-rack-a:
-  rack: a
   attachments: |
     [
       {

@@ -1,19 +1,6 @@
 {
-  "description": "Consumer application selects one immutable rack relation scope.",
-  "properties": {
-    "rack": {
-      "anyOf": [
-        {
-          "type": "string"
-        },
-        {
-          "type": "null"
-        }
-      ],
-      "default": null,
-      "title": "Rack"
-    }
-  },
-  "title": "RackRequest",
+  "description": "Ignore additive fields to support independently upgraded producers.",
+  "properties": {},
+  "title": "Record",
   "type": "object"
 }

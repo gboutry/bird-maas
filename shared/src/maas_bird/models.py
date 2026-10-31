@@ -41,6 +41,8 @@ class Inventory(Record):
     """Provider application data. Only the provider leader writes this."""
 
     rack: str | None = None
+    member_uuids: tuple[str, ...] | None = None
+    scope_state: Literal["ready", "pending", "conflict", "revoked"] | None = None
     hosts: tuple[Host, ...] | None = None
 
 
@@ -55,7 +57,7 @@ class InventoryRequest(Record):
 
 
 class RackRequest(Record):
-    """Consumer application selects one immutable rack relation scope."""
+    """Consumer forwards its MAAS-derived attachment delivery scope."""
 
     rack: str | None = None
 

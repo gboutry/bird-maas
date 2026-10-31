@@ -31,10 +31,6 @@ provides:
     optional: true
 config:
   options:
-    rack:
-      type: string
-      default: ""
-      description: Physical rack ID. Deploy a separate application for each rack.
     attachments:
       type: string
       description: JSON array of explicitly approved card/function/VLAN/uplink/TOR

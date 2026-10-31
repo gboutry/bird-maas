@@ -143,6 +143,39 @@
       "default": null,
       "title": "Rack"
     },
+    "member_uuids": {
+      "anyOf": [
+        {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Member Uuids"
+    },
+    "scope_state": {
+      "anyOf": [
+        {
+          "enum": [
+            "ready",
+            "pending",
+            "conflict",
+            "revoked"
+          ],
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Scope State"
+    },
     "hosts": {
       "anyOf": [
         {

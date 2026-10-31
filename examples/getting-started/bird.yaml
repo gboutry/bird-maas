@@ -1,6 +1,5 @@
 # EXAMPLE ONLY: replace identities, placements, addresses and secret IDs.
 bird-rack-a:
-  rack: a
   enabled: false
   bgp-credentials: ''
   protected-prefixes: 192.0.2.0/24

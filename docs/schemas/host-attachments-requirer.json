@@ -1,0 +1,19 @@
+{
+  "description": "Consumer forwards its MAAS-derived attachment delivery scope.",
+  "properties": {
+    "rack": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Rack"
+    }
+  },
+  "title": "RackRequest",
+  "type": "object"
+}

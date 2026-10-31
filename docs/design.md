@@ -8,8 +8,11 @@ client's behavior; it does not make an otherwise privileged MAAS token read-only
 at the server. Use the least privileged service identity MAAS actually supports.
 No API keys, full machine objects or unrelated MAAS metadata enter relations.
 
-Each BIRD application selects one immutable rack. The adapter publishes only
-that rack's hosts and peers to that relation. Each BIRD unit selects its physical
+Each BIRD unit publishes its observed DMI UUID. The adapter joins every active
+unit's UUID to fresh MAAS records and requires all members of an application to
+belong to the same approved rack. Neither BIRD nor the DPU observer has a `rack`
+config option. Once established, a relation's rack binding is immutable. The
+adapter publishes only that rack's hosts and peers to that relation. Each BIRD unit selects its physical
 DMI UUID, then selects matching card identities and host/domain workload headers
 before validating payloads. A malformed unrelated producer cannot block a local
 withdrawal. A separate fabric controller is not required.
@@ -31,9 +34,9 @@ are ignored, while invalid known fields reject the snapshot.
 
 | Endpoint | Interface | Writer | Fields and meaning |
 |---|---|---|---|
-| `inventory` | `machine-inventory` | BIRD leader (consumer app) | `rack`: immutable rack request |
 | `inventory` | `machine-inventory` | Each BIRD unit (consumer unit) | `system_uuid`: observed local DMI UUID |
-| `inventory` | `machine-inventory` | Inventory leader (provider app) | `rack`, `hosts`: selected MAAS identities, ASNs, router IDs and approved TORs |
+| `inventory` | `machine-inventory` | Inventory leader (provider app) | `rack`, `member_uuids`, `scope_state`, `hosts`: MAAS-derived membership, authorization state and selected identities/peers |
+| `attachments` | `host-attachments` | BIRD leader (consumer app) | `rack`: delivery context forwarded from authoritative inventory |
 | `attachments` | `host-attachments` | Each attachment-provider unit | `rack`, `cards`: card identity and attachment observations |
 | `advertisements` | `route-advertisements` | Workload owner (provider unit) | `rack`, `machine_id`, `domain`, `advertisements`: complete readiness snapshot for that host/domain |
 
@@ -47,7 +50,24 @@ explicit routing allocations with MAAS `system_id`, `hardware_uuid` and exactly
 one `rack-<id>` tag. Missing or invalid host observations confer no new authority.
 A complete successful host removal revokes it; a failed API request does not
 synthesize an empty snapshot. During an outage, only restrictions of previously
-published authority may be delivered.
+published authority may be delivered. Initial binding and added members require
+a fresh API response; a cached response cannot introduce new membership.
+
+The provider publishes `ready` for complete valid membership, `pending` when
+identity or API inputs are incomplete, `conflict` for ambiguous or mixed-rack
+membership, and `revoked` when a bound application's complete membership moves
+to another rack. Conflicts publish zero authority. A rack move retains the old
+rack header and a durable revoked tombstone: correcting configuration cannot
+silently rebind that relation, even after leader state is lost. Reintegrate the
+application deliberately after reviewing its placement. Pending membership can
+carry known removals but cannot authorize new routes.
+
+DPU units need neither MAAS credentials nor an inventory relation. They project
+one native card observation into each consumer's requested delivery context.
+That header does not prove the DPU belongs to a rack: BIRD still joins native
+card identity, MAAS host identity and approved TOR chassis. A changed delivery
+context empties that relation's attachment list under its old header before any
+fallible discovery. Other consumers remain independent.
 
 An attachment identifies a card using `{scheme,value}` and has `id`, `domain`,
 `function`, `observed_function`, `ovs_port`, `vlan`, `chassis_id`,
