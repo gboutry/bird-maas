@@ -1,6 +1,6 @@
-"""Compile the reviewed rack allocation without asserting live readiness.
+"""Compile a synthetic rack allocation without asserting live readiness.
 
-These observations exist only in the test process. Production examples contain
+These observations exist only in the test process. Synthetic fixture files contain
 intent, never a relation databag that an operator could publish as Ready.
 """
 
@@ -15,7 +15,7 @@ from maas_bird.models import Attachment, Attachments, Card, Host, Identity, Inve
 from maas_bird.render import render_rack
 from maas_bird.resolver import resolve_rack
 
-EXAMPLES = Path(__file__).resolve().parents[2] / "examples/rb3-rack-local"
+EXAMPLES = Path(__file__).resolve().parents[2] / "tests/fixtures/rack_local"
 
 
 def load(name):
@@ -25,17 +25,15 @@ def load(name):
 def reviewed_host_inputs(name):
     """Supply explicit test observations for the proposed, unprovisioned links."""
     host = next(h for h in load("hosts.json") if h["name"] == name)
-    config = yaml.safe_load((EXAMPLES / "host-bird.yaml").read_text())["mbird-acceptance-rb3"]
-    inventory = yaml.safe_load((EXAMPLES / "inventory.yaml").read_text())[
-        "mbird-acceptance-inventory"
-    ]
+    config = yaml.safe_load((EXAMPLES / "host-bird.yaml").read_text())["bird"]
+    inventory = yaml.safe_load((EXAMPLES / "inventory.yaml").read_text())["inventory"]
     profile = json.loads(inventory["rack-profiles"])[0]
     rack = profile["id"]
     peers = profile["peers"]
     configured = json.loads(
-        yaml.safe_load((EXAMPLES / "dpu-attachments.yaml").read_text())[
-            "mbird-acceptance-dpu-rb3"
-        ]["attachments"]
+        yaml.safe_load((EXAMPLES / "dpu-attachments.yaml").read_text())["attachments"][
+            "attachments"
+        ]
     )
     by_id = {a["id"]: a for a in configured}
     documents, links = [], []
@@ -88,7 +86,7 @@ def reviewed_host_inputs(name):
     )
 
 
-@pytest.mark.parametrize("host", ["n1", "n5", "n6"])
+@pytest.mark.parametrize("host", ["host-a", "host-c", "host-b"])
 def test_reviewed_ceph_config_compiles_with_test_observations(host):
     inputs = reviewed_host_inputs(host)
     assert inputs["config"]["enabled"] is False

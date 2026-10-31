@@ -1,0 +1,243 @@
+network:
+  version: 2
+  renderer: networkd
+  ethernets:
+    ens1f0v55:
+      match:
+        name: ens1f0v55
+      mtu: 9000
+      dhcp4: false
+      dhcp6: false
+      accept-ra: false
+      link-local: []
+      optional: true
+    ens2f0v55:
+      match:
+        name: ens2f0v55
+      mtu: 9000
+      dhcp4: false
+      dhcp6: false
+      accept-ra: false
+      link-local: []
+      optional: true
+    ens1f0v56:
+      match:
+        name: ens1f0v56
+      mtu: 9000
+      dhcp4: false
+      dhcp6: false
+      accept-ra: false
+      link-local: []
+      optional: true
+    ens2f0v56:
+      match:
+        name: ens2f0v56
+      mtu: 9000
+      dhcp4: false
+      dhcp6: false
+      accept-ra: false
+      link-local: []
+      optional: true
+    ens1f0v57:
+      match:
+        name: ens1f0v57
+      mtu: 9000
+      dhcp4: false
+      dhcp6: false
+      accept-ra: false
+      link-local: []
+      optional: true
+    ens2f0v57:
+      match:
+        name: ens2f0v57
+      mtu: 9000
+      dhcp4: false
+      dhcp6: false
+      accept-ra: false
+      link-local: []
+      optional: true
+    ens1f0v58:
+      match:
+        name: ens1f0v58
+      mtu: 9000
+      dhcp4: false
+      dhcp6: false
+      accept-ra: false
+      link-local: []
+      optional: true
+    ens2f0v58:
+      match:
+        name: ens2f0v58
+      mtu: 9000
+      dhcp4: false
+      dhcp6: false
+      accept-ra: false
+      link-local: []
+      optional: true
+    ens1f0v59:
+      match:
+        name: ens1f0v59
+      mtu: 9000
+      dhcp4: false
+      dhcp6: false
+      accept-ra: false
+      link-local: []
+      optional: true
+    ens2f0v59:
+      match:
+        name: ens2f0v59
+      mtu: 9000
+      dhcp4: false
+      dhcp6: false
+      accept-ra: false
+      link-local: []
+      optional: true
+    lo:
+      match:
+        name: lo
+      addresses:
+      - 203.0.113.9/32
+      - 203.0.113.25/32
+      - 203.0.113.41/32
+      - 203.0.113.57/32
+      routes:
+      - to: 0.0.0.0/0
+        type: unreachable
+        table: 4100
+        metric: 42760
+      - to: 0.0.0.0/0
+        type: unreachable
+        table: 4101
+        metric: 42760
+      - to: 0.0.0.0/0
+        type: unreachable
+        table: 4200
+        metric: 42760
+      - to: 0.0.0.0/0
+        type: unreachable
+        table: 4201
+        metric: 42760
+      routing-policy:
+      - from: 203.0.113.9/32
+        table: 4100
+        priority: 10000
+      - from: 203.0.113.25/32
+        table: 4101
+        priority: 10100
+      - from: 203.0.113.41/32
+        table: 4200
+        priority: 10200
+      - from: 203.0.113.57/32
+        table: 4201
+        priority: 10300
+  vlans:
+    v3500:
+      id: 3500
+      link: ens1f0v55
+      mtu: 9000
+      addresses:
+      - fe80::2/64
+      dhcp4: false
+      dhcp6: false
+      accept-ra: false
+      link-local: []
+      optional: true
+    v3501:
+      id: 3501
+      link: ens2f0v55
+      mtu: 9000
+      addresses:
+      - fe80::2/64
+      dhcp4: false
+      dhcp6: false
+      accept-ra: false
+      link-local: []
+      optional: true
+    v3502:
+      id: 3502
+      link: ens1f0v56
+      mtu: 9000
+      addresses:
+      - fe80::2/64
+      dhcp4: false
+      dhcp6: false
+      accept-ra: false
+      link-local: []
+      optional: true
+    v3503:
+      id: 3503
+      link: ens2f0v56
+      mtu: 9000
+      addresses:
+      - fe80::2/64
+      dhcp4: false
+      dhcp6: false
+      accept-ra: false
+      link-local: []
+      optional: true
+    v3504:
+      id: 3504
+      link: ens1f0v57
+      mtu: 9000
+      addresses:
+      - fe80::2/64
+      dhcp4: false
+      dhcp6: false
+      accept-ra: false
+      link-local: []
+      optional: true
+    v3505:
+      id: 3505
+      link: ens2f0v57
+      mtu: 9000
+      addresses:
+      - fe80::2/64
+      dhcp4: false
+      dhcp6: false
+      accept-ra: false
+      link-local: []
+      optional: true
+    v3506:
+      id: 3506
+      link: ens1f0v58
+      mtu: 9000
+      addresses:
+      - fe80::2/64
+      dhcp4: false
+      dhcp6: false
+      accept-ra: false
+      link-local: []
+      optional: true
+    v3507:
+      id: 3507
+      link: ens2f0v58
+      mtu: 9000
+      addresses:
+      - fe80::2/64
+      dhcp4: false
+      dhcp6: false
+      accept-ra: false
+      link-local: []
+      optional: true
+    v3508:
+      id: 3508
+      link: ens1f0v59
+      mtu: 9000
+      addresses:
+      - fe80::2/64
+      dhcp4: false
+      dhcp6: false
+      accept-ra: false
+      link-local: []
+      optional: true
+    v3509:
+      id: 3509
+      link: ens2f0v59
+      mtu: 9000
+      addresses:
+      - fe80::2/64
+      dhcp4: false
+      dhcp6: false
+      accept-ra: false
+      link-local: []
+      optional: true

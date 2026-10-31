@@ -66,8 +66,8 @@ still need a compatible attachment provider; an ordinary-NIC provider is not
 included. A Ceph readiness adapter is not included either; node-address mode can instead
 route explicitly assigned transport addresses independently of OSD health.
 
-The design keeps BIRD and attachment relations within a rack. It describes a
-60-rack topology, but controller capacity and convergence at that scale still
+Each unit resolves its rack authority independently, even when an application
+spans racks. The design describes a 60-rack topology, but controller capacity and convergence at that scale still
 require deployment testing. Supported boundaries and outstanding acceptance
 work are listed in [verification](docs/verification.md).
 
@@ -106,8 +106,6 @@ hardware forwarding counters during normal operation and failover.
   and the path to a first pilot.
 - [Node-owned addresses](docs/node-addresses.md): explicit address advertisement
   without claiming workload health.
-- [RB3 rack-local configuration review](examples/rb3-rack-local/README.md): concrete
-  host/DPU/TOR allocations and the remaining provisioning integrations.
 - [Dedicated VF paths](docs/dedicated-paths.md): separate Ceph VIP pairs and an
   explicitly NUMA-neutral context.
 - [Operations and migration](docs/operations.md): health, updates, withdrawal and
@@ -116,9 +114,6 @@ hardware forwarding counters during normal operation and failover.
   policy and rollback behavior.
 - [Verification](docs/verification.md): what each test layer proves and the
   remaining production acceptance work.
-- [RB3 offline handoff, 31 October 2026](docs/operator-handoff-20261031.md): dated
-  deployment-specific configuration and evidence. Use the generic walkthrough
-  for a new datacenter; do not copy RB3 allocations or secret references.
 
 ## Develop and test
 

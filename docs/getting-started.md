@@ -164,9 +164,8 @@ observe the actual layout; do not substitute an unverified name to force Ready.
 
 BGP configuration syntax and persistence belong to the switch vendor and its
 configuration owner. Do not copy FRR commands onto another implementation or
-mix unmanaged FRR edits with a system that regenerates them. The dated
-[RB3 switch handoff](operator-switch-request-20261031.md) is a concrete lab
-reference, not a portable vendor-neutral apply script.
+mix unmanaged FRR edits with a system that regenerates them. Keep the exact
+vendor configuration and rollback plan in the deployment operator workspace.
 
 ## 3. Deploy disabled and deliver inventory
 

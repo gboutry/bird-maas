@@ -49,4 +49,4 @@ workload boot ordering and address/network changes coordinated with routing.
 This option does not create loopbacks, peerings, VLANs, policy rules or DPU
 forwarding. It does not change the source-only routing model, permit a default
 route, or establish automatic source selection for ordinary host applications.
-Those are separate parts of the [routed fabric proposal](routed-fabric-plan-20261031.md).
+Those remain separate provisioning responsibilities; see [network ownership](design.md).

@@ -1,0 +1,90 @@
+{
+  "machine": "13",
+  "serial": "synthetic-card-03",
+  "bridge": "br-data",
+  "retain": {
+    "kernel_bond": "bond0",
+    "mode": "802.3ad",
+    "members": [
+      "enp3s0f0np0",
+      "enp3s0f1np1"
+    ],
+    "ovs_bridge": "br-data",
+    "ovs_uplink": "bond0",
+    "ovs_type": "doca"
+  },
+  "ports": [
+    {
+      "name": "pf0vf55",
+      "bridge": "br-data",
+      "type": "doca",
+      "trunks": [
+        3510
+      ],
+      "tag": null,
+      "mtu_request": 9000
+    },
+    {
+      "name": "pf0vf56",
+      "bridge": "br-data",
+      "type": "doca",
+      "trunks": [
+        3512
+      ],
+      "tag": null,
+      "mtu_request": 9000
+    },
+    {
+      "name": "pf0vf57",
+      "bridge": "br-data",
+      "type": "doca",
+      "trunks": [
+        3514
+      ],
+      "tag": null,
+      "mtu_request": 9000
+    },
+    {
+      "name": "pf0vf58",
+      "bridge": "br-data",
+      "type": "doca",
+      "trunks": [
+        3516
+      ],
+      "tag": null,
+      "mtu_request": 9000
+    },
+    {
+      "name": "pf0vf59",
+      "bridge": "br-data",
+      "type": "doca",
+      "trunks": [
+        3518
+      ],
+      "tag": null,
+      "mtu_request": 9000
+    },
+    {
+      "name": "u3584",
+      "bridge": "br-data",
+      "type": "internal",
+      "tag": 3584,
+      "trunks": [],
+      "mtu_request": 9000
+    },
+    {
+      "name": "u3585",
+      "bridge": "br-data",
+      "type": "internal",
+      "tag": 3585,
+      "trunks": [],
+      "mtu_request": 9000
+    }
+  ],
+  "ownership": "Existing DPU provisioning owner; not bird or dpu-attachments",
+  "preserve_all_existing_ports": true,
+  "preserve_uplink_trunks": true,
+  "never_reset_vf_count": true,
+  "never_restart_ovs": true,
+  "record_new_ports_in_authoritative_bridge_model": true
+}

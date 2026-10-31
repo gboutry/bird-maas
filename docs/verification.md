@@ -2,12 +2,13 @@
 
 Do not promote a targeted passing run into a full-suite result. Record the exact
 source revision, command, exit status, native software version and fixture cleanup
-for each acceptance run. `docs/build-verification.json` records artifact hashes
-for its recorded build; rerun verification after changing shared or charm sources.
+for each acceptance run. Keep deployment receipts and captured inventory outside
+the public source tree. Rerun artifact verification after changing shared or
+charm sources.
 
 | Layer | Native command | What it establishes |
 |---|---|---|
-| Types | `uv check` | Static type checks only |
+| Types | `make typecheck` | Static type checks only |
 | Style | `make lint` | Repository-native Ruff checks |
 | Components | `make test` | Ops event handling, compiler, authority, property and fault-model tests |
 | BIRD | `BIRD_BINARY=... make native` | Executed parser and native daemon control behavior |
@@ -57,13 +58,12 @@ established physical TOR peers.
   checks and actual hooks on six physical DPUs pass. BIRD and MAAS adapter ARM
   workloads have not been exercised on physical ARM targets.
 
-The local tests did not touch the pilot site's production hosts or TORs.
-A subsequent explicitly authorized
-three-node disabled pilot is recorded in [live acceptance](live-acceptance-20261031.md);
-it made no existing BIRD or forwarding changes.
+## Evidence storage
 
-For the later inventory activation and exact saved configuration, see the dated
-[offline handoff](operator-handoff-20261031.md). That checkpoint records working
-inventory delivery with charm-managed routing still disabled; it is not positive
-physical BGP/failover acceptance. Historical snapshots are evidence for their
-recorded revision/time, not a substitute for checking a new deployment.
+Site-specific inventories, run receipts, restoration plans and operator handoffs
+belong in a private deployment workspace. They are not portable product
+configuration or proof of the current revision. The tracked examples use
+operator-supplied placeholders; rack provisioning tests use synthetic hardware
+identifiers and documentation addresses under `tests/fixtures/rack_local`.
+
+A previously passing receipt is not a substitute for checking a new deployment.

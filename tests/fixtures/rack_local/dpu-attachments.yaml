@@ -1,0 +1,604 @@
+attachments:
+  attachments: |
+    [
+      {
+        "serial": "synthetic-card-01",
+        "id": "host-a-vf55-tor1",
+        "function": {
+          "controller": 1,
+          "pf": 0,
+          "vf": 55
+        },
+        "host_function": {
+          "controller": 0,
+          "pf": 0,
+          "vf": 55
+        },
+        "domain": "ceph-public",
+        "vlan": 3500,
+        "uplink": "enp3s0f0np0",
+        "chassis_id": "02:00:00:00:00:01",
+        "peer_link_local": "fe80::1",
+        "uplink_bond": "bond0"
+      },
+      {
+        "serial": "synthetic-card-02",
+        "id": "host-a-vf55-tor2",
+        "function": {
+          "controller": 1,
+          "pf": 0,
+          "vf": 55
+        },
+        "host_function": {
+          "controller": 0,
+          "pf": 0,
+          "vf": 55
+        },
+        "domain": "ceph-public",
+        "vlan": 3501,
+        "uplink": "enp3s0f1np1",
+        "chassis_id": "02:00:00:00:00:02",
+        "peer_link_local": "fe80::1",
+        "uplink_bond": "bond0"
+      },
+      {
+        "serial": "synthetic-card-01",
+        "id": "host-a-vf56-tor1",
+        "function": {
+          "controller": 1,
+          "pf": 0,
+          "vf": 56
+        },
+        "host_function": {
+          "controller": 0,
+          "pf": 0,
+          "vf": 56
+        },
+        "domain": "ceph-public",
+        "vlan": 3502,
+        "uplink": "enp3s0f0np0",
+        "chassis_id": "02:00:00:00:00:01",
+        "peer_link_local": "fe80::1",
+        "uplink_bond": "bond0"
+      },
+      {
+        "serial": "synthetic-card-02",
+        "id": "host-a-vf56-tor2",
+        "function": {
+          "controller": 1,
+          "pf": 0,
+          "vf": 56
+        },
+        "host_function": {
+          "controller": 0,
+          "pf": 0,
+          "vf": 56
+        },
+        "domain": "ceph-public",
+        "vlan": 3503,
+        "uplink": "enp3s0f1np1",
+        "chassis_id": "02:00:00:00:00:02",
+        "peer_link_local": "fe80::1",
+        "uplink_bond": "bond0"
+      },
+      {
+        "serial": "synthetic-card-01",
+        "id": "host-a-vf57-tor1",
+        "function": {
+          "controller": 1,
+          "pf": 0,
+          "vf": 57
+        },
+        "host_function": {
+          "controller": 0,
+          "pf": 0,
+          "vf": 57
+        },
+        "domain": "ceph-replication",
+        "vlan": 3504,
+        "uplink": "enp3s0f0np0",
+        "chassis_id": "02:00:00:00:00:01",
+        "peer_link_local": "fe80::1",
+        "uplink_bond": "bond0"
+      },
+      {
+        "serial": "synthetic-card-02",
+        "id": "host-a-vf57-tor2",
+        "function": {
+          "controller": 1,
+          "pf": 0,
+          "vf": 57
+        },
+        "host_function": {
+          "controller": 0,
+          "pf": 0,
+          "vf": 57
+        },
+        "domain": "ceph-replication",
+        "vlan": 3505,
+        "uplink": "enp3s0f1np1",
+        "chassis_id": "02:00:00:00:00:02",
+        "peer_link_local": "fe80::1",
+        "uplink_bond": "bond0"
+      },
+      {
+        "serial": "synthetic-card-01",
+        "id": "host-a-vf58-tor1",
+        "function": {
+          "controller": 1,
+          "pf": 0,
+          "vf": 58
+        },
+        "host_function": {
+          "controller": 0,
+          "pf": 0,
+          "vf": 58
+        },
+        "domain": "ceph-replication",
+        "vlan": 3506,
+        "uplink": "enp3s0f0np0",
+        "chassis_id": "02:00:00:00:00:01",
+        "peer_link_local": "fe80::1",
+        "uplink_bond": "bond0"
+      },
+      {
+        "serial": "synthetic-card-02",
+        "id": "host-a-vf58-tor2",
+        "function": {
+          "controller": 1,
+          "pf": 0,
+          "vf": 58
+        },
+        "host_function": {
+          "controller": 0,
+          "pf": 0,
+          "vf": 58
+        },
+        "domain": "ceph-replication",
+        "vlan": 3507,
+        "uplink": "enp3s0f1np1",
+        "chassis_id": "02:00:00:00:00:02",
+        "peer_link_local": "fe80::1",
+        "uplink_bond": "bond0"
+      },
+      {
+        "serial": "synthetic-card-01",
+        "id": "host-a-vf59-tor1",
+        "function": {
+          "controller": 1,
+          "pf": 0,
+          "vf": 59
+        },
+        "host_function": {
+          "controller": 0,
+          "pf": 0,
+          "vf": 59
+        },
+        "domain": "general",
+        "vlan": 3508,
+        "uplink": "enp3s0f0np0",
+        "chassis_id": "02:00:00:00:00:01",
+        "peer_link_local": "fe80::1",
+        "uplink_bond": "bond0"
+      },
+      {
+        "serial": "synthetic-card-02",
+        "id": "host-a-vf59-tor2",
+        "function": {
+          "controller": 1,
+          "pf": 0,
+          "vf": 59
+        },
+        "host_function": {
+          "controller": 0,
+          "pf": 0,
+          "vf": 59
+        },
+        "domain": "general",
+        "vlan": 3509,
+        "uplink": "enp3s0f1np1",
+        "chassis_id": "02:00:00:00:00:02",
+        "peer_link_local": "fe80::1",
+        "uplink_bond": "bond0"
+      },
+      {
+        "serial": "synthetic-card-03",
+        "id": "host-b-vf55-tor1",
+        "function": {
+          "controller": 1,
+          "pf": 0,
+          "vf": 55
+        },
+        "host_function": {
+          "controller": 0,
+          "pf": 0,
+          "vf": 55
+        },
+        "domain": "ceph-public",
+        "vlan": 3510,
+        "uplink": "enp3s0f0np0",
+        "chassis_id": "02:00:00:00:00:01",
+        "peer_link_local": "fe80::1",
+        "uplink_bond": "bond0"
+      },
+      {
+        "serial": "synthetic-card-04",
+        "id": "host-b-vf55-tor2",
+        "function": {
+          "controller": 1,
+          "pf": 0,
+          "vf": 55
+        },
+        "host_function": {
+          "controller": 0,
+          "pf": 0,
+          "vf": 55
+        },
+        "domain": "ceph-public",
+        "vlan": 3511,
+        "uplink": "enp3s0f1np1",
+        "chassis_id": "02:00:00:00:00:02",
+        "peer_link_local": "fe80::1",
+        "uplink_bond": "bond0"
+      },
+      {
+        "serial": "synthetic-card-03",
+        "id": "host-b-vf56-tor1",
+        "function": {
+          "controller": 1,
+          "pf": 0,
+          "vf": 56
+        },
+        "host_function": {
+          "controller": 0,
+          "pf": 0,
+          "vf": 56
+        },
+        "domain": "ceph-public",
+        "vlan": 3512,
+        "uplink": "enp3s0f0np0",
+        "chassis_id": "02:00:00:00:00:01",
+        "peer_link_local": "fe80::1",
+        "uplink_bond": "bond0"
+      },
+      {
+        "serial": "synthetic-card-04",
+        "id": "host-b-vf56-tor2",
+        "function": {
+          "controller": 1,
+          "pf": 0,
+          "vf": 56
+        },
+        "host_function": {
+          "controller": 0,
+          "pf": 0,
+          "vf": 56
+        },
+        "domain": "ceph-public",
+        "vlan": 3513,
+        "uplink": "enp3s0f1np1",
+        "chassis_id": "02:00:00:00:00:02",
+        "peer_link_local": "fe80::1",
+        "uplink_bond": "bond0"
+      },
+      {
+        "serial": "synthetic-card-03",
+        "id": "host-b-vf57-tor1",
+        "function": {
+          "controller": 1,
+          "pf": 0,
+          "vf": 57
+        },
+        "host_function": {
+          "controller": 0,
+          "pf": 0,
+          "vf": 57
+        },
+        "domain": "ceph-replication",
+        "vlan": 3514,
+        "uplink": "enp3s0f0np0",
+        "chassis_id": "02:00:00:00:00:01",
+        "peer_link_local": "fe80::1",
+        "uplink_bond": "bond0"
+      },
+      {
+        "serial": "synthetic-card-04",
+        "id": "host-b-vf57-tor2",
+        "function": {
+          "controller": 1,
+          "pf": 0,
+          "vf": 57
+        },
+        "host_function": {
+          "controller": 0,
+          "pf": 0,
+          "vf": 57
+        },
+        "domain": "ceph-replication",
+        "vlan": 3515,
+        "uplink": "enp3s0f1np1",
+        "chassis_id": "02:00:00:00:00:02",
+        "peer_link_local": "fe80::1",
+        "uplink_bond": "bond0"
+      },
+      {
+        "serial": "synthetic-card-03",
+        "id": "host-b-vf58-tor1",
+        "function": {
+          "controller": 1,
+          "pf": 0,
+          "vf": 58
+        },
+        "host_function": {
+          "controller": 0,
+          "pf": 0,
+          "vf": 58
+        },
+        "domain": "ceph-replication",
+        "vlan": 3516,
+        "uplink": "enp3s0f0np0",
+        "chassis_id": "02:00:00:00:00:01",
+        "peer_link_local": "fe80::1",
+        "uplink_bond": "bond0"
+      },
+      {
+        "serial": "synthetic-card-04",
+        "id": "host-b-vf58-tor2",
+        "function": {
+          "controller": 1,
+          "pf": 0,
+          "vf": 58
+        },
+        "host_function": {
+          "controller": 0,
+          "pf": 0,
+          "vf": 58
+        },
+        "domain": "ceph-replication",
+        "vlan": 3517,
+        "uplink": "enp3s0f1np1",
+        "chassis_id": "02:00:00:00:00:02",
+        "peer_link_local": "fe80::1",
+        "uplink_bond": "bond0"
+      },
+      {
+        "serial": "synthetic-card-03",
+        "id": "host-b-vf59-tor1",
+        "function": {
+          "controller": 1,
+          "pf": 0,
+          "vf": 59
+        },
+        "host_function": {
+          "controller": 0,
+          "pf": 0,
+          "vf": 59
+        },
+        "domain": "general",
+        "vlan": 3518,
+        "uplink": "enp3s0f0np0",
+        "chassis_id": "02:00:00:00:00:01",
+        "peer_link_local": "fe80::1",
+        "uplink_bond": "bond0"
+      },
+      {
+        "serial": "synthetic-card-04",
+        "id": "host-b-vf59-tor2",
+        "function": {
+          "controller": 1,
+          "pf": 0,
+          "vf": 59
+        },
+        "host_function": {
+          "controller": 0,
+          "pf": 0,
+          "vf": 59
+        },
+        "domain": "general",
+        "vlan": 3519,
+        "uplink": "enp3s0f1np1",
+        "chassis_id": "02:00:00:00:00:02",
+        "peer_link_local": "fe80::1",
+        "uplink_bond": "bond0"
+      },
+      {
+        "serial": "synthetic-card-05",
+        "id": "host-c-vf55-tor1",
+        "function": {
+          "controller": 1,
+          "pf": 0,
+          "vf": 55
+        },
+        "host_function": {
+          "controller": 0,
+          "pf": 0,
+          "vf": 55
+        },
+        "domain": "ceph-public",
+        "vlan": 3520,
+        "uplink": "enp3s0f0np0",
+        "chassis_id": "02:00:00:00:00:01",
+        "peer_link_local": "fe80::1",
+        "uplink_bond": "bond0"
+      },
+      {
+        "serial": "synthetic-card-06",
+        "id": "host-c-vf55-tor2",
+        "function": {
+          "controller": 1,
+          "pf": 0,
+          "vf": 55
+        },
+        "host_function": {
+          "controller": 0,
+          "pf": 0,
+          "vf": 55
+        },
+        "domain": "ceph-public",
+        "vlan": 3521,
+        "uplink": "enp3s0f1np1",
+        "chassis_id": "02:00:00:00:00:02",
+        "peer_link_local": "fe80::1",
+        "uplink_bond": "bond0"
+      },
+      {
+        "serial": "synthetic-card-05",
+        "id": "host-c-vf56-tor1",
+        "function": {
+          "controller": 1,
+          "pf": 0,
+          "vf": 56
+        },
+        "host_function": {
+          "controller": 0,
+          "pf": 0,
+          "vf": 56
+        },
+        "domain": "ceph-public",
+        "vlan": 3522,
+        "uplink": "enp3s0f0np0",
+        "chassis_id": "02:00:00:00:00:01",
+        "peer_link_local": "fe80::1",
+        "uplink_bond": "bond0"
+      },
+      {
+        "serial": "synthetic-card-06",
+        "id": "host-c-vf56-tor2",
+        "function": {
+          "controller": 1,
+          "pf": 0,
+          "vf": 56
+        },
+        "host_function": {
+          "controller": 0,
+          "pf": 0,
+          "vf": 56
+        },
+        "domain": "ceph-public",
+        "vlan": 3523,
+        "uplink": "enp3s0f1np1",
+        "chassis_id": "02:00:00:00:00:02",
+        "peer_link_local": "fe80::1",
+        "uplink_bond": "bond0"
+      },
+      {
+        "serial": "synthetic-card-05",
+        "id": "host-c-vf57-tor1",
+        "function": {
+          "controller": 1,
+          "pf": 0,
+          "vf": 57
+        },
+        "host_function": {
+          "controller": 0,
+          "pf": 0,
+          "vf": 57
+        },
+        "domain": "ceph-replication",
+        "vlan": 3524,
+        "uplink": "enp3s0f0np0",
+        "chassis_id": "02:00:00:00:00:01",
+        "peer_link_local": "fe80::1",
+        "uplink_bond": "bond0"
+      },
+      {
+        "serial": "synthetic-card-06",
+        "id": "host-c-vf57-tor2",
+        "function": {
+          "controller": 1,
+          "pf": 0,
+          "vf": 57
+        },
+        "host_function": {
+          "controller": 0,
+          "pf": 0,
+          "vf": 57
+        },
+        "domain": "ceph-replication",
+        "vlan": 3525,
+        "uplink": "enp3s0f1np1",
+        "chassis_id": "02:00:00:00:00:02",
+        "peer_link_local": "fe80::1",
+        "uplink_bond": "bond0"
+      },
+      {
+        "serial": "synthetic-card-05",
+        "id": "host-c-vf58-tor1",
+        "function": {
+          "controller": 1,
+          "pf": 0,
+          "vf": 58
+        },
+        "host_function": {
+          "controller": 0,
+          "pf": 0,
+          "vf": 58
+        },
+        "domain": "ceph-replication",
+        "vlan": 3526,
+        "uplink": "enp3s0f0np0",
+        "chassis_id": "02:00:00:00:00:01",
+        "peer_link_local": "fe80::1",
+        "uplink_bond": "bond0"
+      },
+      {
+        "serial": "synthetic-card-06",
+        "id": "host-c-vf58-tor2",
+        "function": {
+          "controller": 1,
+          "pf": 0,
+          "vf": 58
+        },
+        "host_function": {
+          "controller": 0,
+          "pf": 0,
+          "vf": 58
+        },
+        "domain": "ceph-replication",
+        "vlan": 3527,
+        "uplink": "enp3s0f1np1",
+        "chassis_id": "02:00:00:00:00:02",
+        "peer_link_local": "fe80::1",
+        "uplink_bond": "bond0"
+      },
+      {
+        "serial": "synthetic-card-05",
+        "id": "host-c-vf59-tor1",
+        "function": {
+          "controller": 1,
+          "pf": 0,
+          "vf": 59
+        },
+        "host_function": {
+          "controller": 0,
+          "pf": 0,
+          "vf": 59
+        },
+        "domain": "general",
+        "vlan": 3528,
+        "uplink": "enp3s0f0np0",
+        "chassis_id": "02:00:00:00:00:01",
+        "peer_link_local": "fe80::1",
+        "uplink_bond": "bond0"
+      },
+      {
+        "serial": "synthetic-card-06",
+        "id": "host-c-vf59-tor2",
+        "function": {
+          "controller": 1,
+          "pf": 0,
+          "vf": 59
+        },
+        "host_function": {
+          "controller": 0,
+          "pf": 0,
+          "vf": 59
+        },
+        "domain": "general",
+        "vlan": 3529,
+        "uplink": "enp3s0f1np1",
+        "chassis_id": "02:00:00:00:00:02",
+        "peer_link_local": "fe80::1",
+        "uplink_bond": "bond0"
+      }
+    ]

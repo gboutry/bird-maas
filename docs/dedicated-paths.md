@@ -80,7 +80,7 @@ source-selection and management-isolation policy before production migration.
 
 The DPU observer's physical-LLDP/OVS-bond mapping and the DPU's own routed Geneve
 underlay are separate integrations. No live forwarding was changed by these
-compiler changes. See the [routed fabric proposal](routed-fabric-plan-20261031.md).
+compiler changes. See [network ownership](design.md).
 
 ## Executed local verification
 

@@ -1,0 +1,265 @@
+{
+  "asn": 65041,
+  "router_id": "203.0.113.3",
+  "host_peers": [
+    {
+      "host": "host-a",
+      "host_asn": 4200000016,
+      "tor_interface": "vlan3501",
+      "vlan": 3501,
+      "domain": "ceph-public",
+      "context": "numa0",
+      "host_source_link_local": "fe80::2",
+      "tor_link_local": "fe80::1",
+      "session_id": "host-a-vf55-tor2",
+      "physical_card_port": "swp6"
+    },
+    {
+      "host": "host-a",
+      "host_asn": 4200000016,
+      "tor_interface": "vlan3503",
+      "vlan": 3503,
+      "domain": "ceph-public",
+      "context": "numa1",
+      "host_source_link_local": "fe80::2",
+      "tor_link_local": "fe80::1",
+      "session_id": "host-a-vf56-tor2",
+      "physical_card_port": "swp6"
+    },
+    {
+      "host": "host-a",
+      "host_asn": 4200000016,
+      "tor_interface": "vlan3505",
+      "vlan": 3505,
+      "domain": "ceph-replication",
+      "context": "numa0",
+      "host_source_link_local": "fe80::2",
+      "tor_link_local": "fe80::1",
+      "session_id": "host-a-vf57-tor2",
+      "physical_card_port": "swp6"
+    },
+    {
+      "host": "host-a",
+      "host_asn": 4200000016,
+      "tor_interface": "vlan3507",
+      "vlan": 3507,
+      "domain": "ceph-replication",
+      "context": "numa1",
+      "host_source_link_local": "fe80::2",
+      "tor_link_local": "fe80::1",
+      "session_id": "host-a-vf58-tor2",
+      "physical_card_port": "swp6"
+    },
+    {
+      "host": "host-a",
+      "host_asn": 4200000016,
+      "tor_interface": "vlan3509",
+      "vlan": 3509,
+      "domain": "general",
+      "context": "any-numa",
+      "host_source_link_local": "fe80::2",
+      "tor_link_local": "fe80::1",
+      "session_id": "host-a-vf59-tor2",
+      "physical_card_port": "swp6"
+    },
+    {
+      "host": "host-b",
+      "host_asn": 4200000027,
+      "tor_interface": "vlan3511",
+      "vlan": 3511,
+      "domain": "ceph-public",
+      "context": "numa0",
+      "host_source_link_local": "fe80::2",
+      "tor_link_local": "fe80::1",
+      "session_id": "host-b-vf55-tor2",
+      "physical_card_port": "swp19"
+    },
+    {
+      "host": "host-b",
+      "host_asn": 4200000027,
+      "tor_interface": "vlan3513",
+      "vlan": 3513,
+      "domain": "ceph-public",
+      "context": "numa1",
+      "host_source_link_local": "fe80::2",
+      "tor_link_local": "fe80::1",
+      "session_id": "host-b-vf56-tor2",
+      "physical_card_port": "swp19"
+    },
+    {
+      "host": "host-b",
+      "host_asn": 4200000027,
+      "tor_interface": "vlan3515",
+      "vlan": 3515,
+      "domain": "ceph-replication",
+      "context": "numa0",
+      "host_source_link_local": "fe80::2",
+      "tor_link_local": "fe80::1",
+      "session_id": "host-b-vf57-tor2",
+      "physical_card_port": "swp19"
+    },
+    {
+      "host": "host-b",
+      "host_asn": 4200000027,
+      "tor_interface": "vlan3517",
+      "vlan": 3517,
+      "domain": "ceph-replication",
+      "context": "numa1",
+      "host_source_link_local": "fe80::2",
+      "tor_link_local": "fe80::1",
+      "session_id": "host-b-vf58-tor2",
+      "physical_card_port": "swp19"
+    },
+    {
+      "host": "host-b",
+      "host_asn": 4200000027,
+      "tor_interface": "vlan3519",
+      "vlan": 3519,
+      "domain": "general",
+      "context": "any-numa",
+      "host_source_link_local": "fe80::2",
+      "tor_link_local": "fe80::1",
+      "session_id": "host-b-vf59-tor2",
+      "physical_card_port": "swp19"
+    },
+    {
+      "host": "host-c",
+      "host_asn": 4200000026,
+      "tor_interface": "vlan3521",
+      "vlan": 3521,
+      "domain": "ceph-public",
+      "context": "numa0",
+      "host_source_link_local": "fe80::2",
+      "tor_link_local": "fe80::1",
+      "session_id": "host-c-vf55-tor2",
+      "physical_card_port": "swp18"
+    },
+    {
+      "host": "host-c",
+      "host_asn": 4200000026,
+      "tor_interface": "vlan3523",
+      "vlan": 3523,
+      "domain": "ceph-public",
+      "context": "numa1",
+      "host_source_link_local": "fe80::2",
+      "tor_link_local": "fe80::1",
+      "session_id": "host-c-vf56-tor2",
+      "physical_card_port": "swp18"
+    },
+    {
+      "host": "host-c",
+      "host_asn": 4200000026,
+      "tor_interface": "vlan3525",
+      "vlan": 3525,
+      "domain": "ceph-replication",
+      "context": "numa0",
+      "host_source_link_local": "fe80::2",
+      "tor_link_local": "fe80::1",
+      "session_id": "host-c-vf57-tor2",
+      "physical_card_port": "swp18"
+    },
+    {
+      "host": "host-c",
+      "host_asn": 4200000026,
+      "tor_interface": "vlan3527",
+      "vlan": 3527,
+      "domain": "ceph-replication",
+      "context": "numa1",
+      "host_source_link_local": "fe80::2",
+      "tor_link_local": "fe80::1",
+      "session_id": "host-c-vf58-tor2",
+      "physical_card_port": "swp18"
+    },
+    {
+      "host": "host-c",
+      "host_asn": 4200000026,
+      "tor_interface": "vlan3529",
+      "vlan": 3529,
+      "domain": "general",
+      "context": "any-numa",
+      "host_source_link_local": "fe80::2",
+      "tor_link_local": "fe80::1",
+      "session_id": "host-c-vf59-tor2",
+      "physical_card_port": "swp18"
+    }
+  ],
+  "dpu_peers": [
+    {
+      "machine": "11",
+      "local_asn": 4200010011,
+      "vtep": "198.51.100.26/32",
+      "tor": 2,
+      "vlan": 3581,
+      "interface": "u3581",
+      "local_link_local": "fe80::2",
+      "peer_link_local": "fe80::1"
+    },
+    {
+      "machine": "14",
+      "local_asn": 4200010014,
+      "vtep": "198.51.100.10/32",
+      "tor": 2,
+      "vlan": 3583,
+      "interface": "u3583",
+      "local_link_local": "fe80::2",
+      "peer_link_local": "fe80::1"
+    },
+    {
+      "machine": "13",
+      "local_asn": 4200010013,
+      "vtep": "198.51.100.17/32",
+      "tor": 2,
+      "vlan": 3585,
+      "interface": "u3585",
+      "local_link_local": "fe80::2",
+      "peer_link_local": "fe80::1"
+    },
+    {
+      "machine": "16",
+      "local_asn": 4200010016,
+      "vtep": "198.51.100.16/32",
+      "tor": 2,
+      "vlan": 3587,
+      "interface": "u3587",
+      "local_link_local": "fe80::2",
+      "peer_link_local": "fe80::1"
+    },
+    {
+      "machine": "12",
+      "local_asn": 4200010012,
+      "vtep": "198.51.100.27/32",
+      "tor": 2,
+      "vlan": 3589,
+      "interface": "u3589",
+      "local_link_local": "fe80::2",
+      "peer_link_local": "fe80::1"
+    },
+    {
+      "machine": "15",
+      "local_asn": 4200010015,
+      "vtep": "198.51.100.15/32",
+      "tor": 2,
+      "vlan": 3591,
+      "interface": "u3591",
+      "local_link_local": "fe80::2",
+      "peer_link_local": "fe80::1"
+    }
+  ],
+  "bfd": {
+    "tx_ms": 300,
+    "rx_ms": 300,
+    "multiplier": 3
+  },
+  "bgp": {
+    "keepalive_seconds": 3,
+    "hold_seconds": 9,
+    "graceful_restart": false
+  },
+  "unresolved": [
+    "persistent NVUE/ifupdown owner and existing MLAG bond membership additive merge",
+    "domain VRFs and inter-TOR/fabric route propagation",
+    "BGP secret values, per-source inbound limits and preference propagation",
+    "general source and destination/default policy",
+    "full remote VTEP allowlist"
+  ]
+}

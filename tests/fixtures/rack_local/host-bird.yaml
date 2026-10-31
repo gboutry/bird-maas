@@ -1,0 +1,203 @@
+bird:
+  enabled: false
+  advertisement-mode: node-addresses
+  bfd-min-tx-ms: 300
+  bfd-min-rx-ms: 300
+  bfd-multiplier: 3
+  bgp-hold-time-seconds: 9
+  bgp-keepalive-time-seconds: 3
+  protected-prefixes: 192.0.2.0/24,198.18.0.0/24
+  routing-domains: |
+    [
+      {
+        "id": "ceph-public",
+        "import_prefixes": [
+          "203.0.113.0/27"
+        ],
+        "export_allowlist": [
+          "203.0.113.0/27"
+        ],
+        "contexts": [
+          {
+            "id": "numa0",
+            "machine_id": "host-a-id",
+            "numa_node": 0,
+            "attachment_ids": [
+              "host-a-vf55-tor1",
+              "host-a-vf55-tor2"
+            ],
+            "table": 4100,
+            "rule_priority": 10000,
+            "sources": [
+              "203.0.113.9/32"
+            ]
+          },
+          {
+            "id": "numa1",
+            "machine_id": "host-a-id",
+            "numa_node": 1,
+            "attachment_ids": [
+              "host-a-vf56-tor1",
+              "host-a-vf56-tor2"
+            ],
+            "table": 4101,
+            "rule_priority": 10100,
+            "sources": [
+              "203.0.113.25/32"
+            ]
+          },
+          {
+            "id": "numa0",
+            "machine_id": "host-b-id",
+            "numa_node": 0,
+            "attachment_ids": [
+              "host-b-vf55-tor1",
+              "host-b-vf55-tor2"
+            ],
+            "table": 4100,
+            "rule_priority": 10000,
+            "sources": [
+              "203.0.113.10/32"
+            ]
+          },
+          {
+            "id": "numa1",
+            "machine_id": "host-b-id",
+            "numa_node": 1,
+            "attachment_ids": [
+              "host-b-vf56-tor1",
+              "host-b-vf56-tor2"
+            ],
+            "table": 4101,
+            "rule_priority": 10100,
+            "sources": [
+              "203.0.113.26/32"
+            ]
+          },
+          {
+            "id": "numa0",
+            "machine_id": "host-c-id",
+            "numa_node": 0,
+            "attachment_ids": [
+              "host-c-vf55-tor1",
+              "host-c-vf55-tor2"
+            ],
+            "table": 4100,
+            "rule_priority": 10000,
+            "sources": [
+              "203.0.113.13/32"
+            ]
+          },
+          {
+            "id": "numa1",
+            "machine_id": "host-c-id",
+            "numa_node": 1,
+            "attachment_ids": [
+              "host-c-vf56-tor1",
+              "host-c-vf56-tor2"
+            ],
+            "table": 4101,
+            "rule_priority": 10100,
+            "sources": [
+              "203.0.113.29/32"
+            ]
+          }
+        ]
+      },
+      {
+        "id": "ceph-replication",
+        "import_prefixes": [
+          "203.0.113.32/27"
+        ],
+        "export_allowlist": [
+          "203.0.113.32/27"
+        ],
+        "contexts": [
+          {
+            "id": "numa0",
+            "machine_id": "host-a-id",
+            "numa_node": 0,
+            "attachment_ids": [
+              "host-a-vf57-tor1",
+              "host-a-vf57-tor2"
+            ],
+            "table": 4200,
+            "rule_priority": 10200,
+            "sources": [
+              "203.0.113.41/32"
+            ]
+          },
+          {
+            "id": "numa1",
+            "machine_id": "host-a-id",
+            "numa_node": 1,
+            "attachment_ids": [
+              "host-a-vf58-tor1",
+              "host-a-vf58-tor2"
+            ],
+            "table": 4201,
+            "rule_priority": 10300,
+            "sources": [
+              "203.0.113.57/32"
+            ]
+          },
+          {
+            "id": "numa0",
+            "machine_id": "host-b-id",
+            "numa_node": 0,
+            "attachment_ids": [
+              "host-b-vf57-tor1",
+              "host-b-vf57-tor2"
+            ],
+            "table": 4200,
+            "rule_priority": 10200,
+            "sources": [
+              "203.0.113.42/32"
+            ]
+          },
+          {
+            "id": "numa1",
+            "machine_id": "host-b-id",
+            "numa_node": 1,
+            "attachment_ids": [
+              "host-b-vf58-tor1",
+              "host-b-vf58-tor2"
+            ],
+            "table": 4201,
+            "rule_priority": 10300,
+            "sources": [
+              "203.0.113.58/32"
+            ]
+          },
+          {
+            "id": "numa0",
+            "machine_id": "host-c-id",
+            "numa_node": 0,
+            "attachment_ids": [
+              "host-c-vf57-tor1",
+              "host-c-vf57-tor2"
+            ],
+            "table": 4200,
+            "rule_priority": 10200,
+            "sources": [
+              "203.0.113.43/32"
+            ]
+          },
+          {
+            "id": "numa1",
+            "machine_id": "host-c-id",
+            "numa_node": 1,
+            "attachment_ids": [
+              "host-c-vf58-tor1",
+              "host-c-vf58-tor2"
+            ],
+            "table": 4201,
+            "rule_priority": 10300,
+            "sources": [
+              "203.0.113.59/32"
+            ]
+          }
+        ]
+      }
+    ]
+  policy-protocol: 4

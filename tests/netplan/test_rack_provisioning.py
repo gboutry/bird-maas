@@ -13,18 +13,18 @@ from pathlib import Path
 import pytest
 import yaml
 
-ROOT = Path(__file__).resolve().parents[2] / "examples/rb3-rack-local"
+ROOT = Path(__file__).resolve().parents[2] / "tests/fixtures/rack_local"
 PROVISIONING = ROOT / "provisioning"
 NODES = (
-    "n1",
-    "n5",
-    "n6",
-    "n1-dpu-numa0",
-    "n1-dpu-numa1",
-    "n5-dpu-numa0",
-    "n5-dpu-numa1",
-    "n6-dpu-numa0",
-    "n6-dpu-numa1",
+    "host-a",
+    "host-c",
+    "host-b",
+    "host-a-dpu-numa0",
+    "host-a-dpu-numa1",
+    "host-c-dpu-numa0",
+    "host-c-dpu-numa1",
+    "host-b-dpu-numa0",
+    "host-b-dpu-numa1",
 )
 
 
@@ -72,7 +72,7 @@ def test_netplan_generates_the_reviewed_objects_without_applying(node, tmp_path)
 
 
 def test_provisioning_and_charm_contexts_have_one_static_contract():
-    config = yaml.safe_load((ROOT / "host-bird.yaml").read_text())["mbird-acceptance-rb3"]
+    config = yaml.safe_load((ROOT / "host-bird.yaml").read_text())["bird"]
     assert config["policy-protocol"] == 4
     assert config["enabled"] is False
     domains = json.loads(config["routing-domains"])

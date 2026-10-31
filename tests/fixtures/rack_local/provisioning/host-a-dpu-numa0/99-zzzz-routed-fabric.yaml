@@ -1,0 +1,71 @@
+network:
+  version: 2
+  renderer: networkd
+  ethernets:
+    pf0vf55:
+      mtu: 9000
+      dhcp4: false
+      dhcp6: false
+      accept-ra: false
+      link-local: []
+      optional: true
+    pf0vf56:
+      mtu: 9000
+      dhcp4: false
+      dhcp6: false
+      accept-ra: false
+      link-local: []
+      optional: true
+    pf0vf57:
+      mtu: 9000
+      dhcp4: false
+      dhcp6: false
+      accept-ra: false
+      link-local: []
+      optional: true
+    pf0vf58:
+      mtu: 9000
+      dhcp4: false
+      dhcp6: false
+      accept-ra: false
+      link-local: []
+      optional: true
+    pf0vf59:
+      mtu: 9000
+      dhcp4: false
+      dhcp6: false
+      accept-ra: false
+      link-local: []
+      optional: true
+    u3580:
+      mtu: 9000
+      addresses:
+      - fe80::2/64
+      dhcp4: false
+      dhcp6: false
+      accept-ra: false
+      link-local: []
+      optional: true
+    u3581:
+      mtu: 9000
+      addresses:
+      - fe80::2/64
+      dhcp4: false
+      dhcp6: false
+      accept-ra: false
+      link-local: []
+      optional: true
+    lo:
+      match:
+        name: lo
+      addresses:
+      - 198.51.100.26/32
+      routes:
+      - to: 0.0.0.0/0
+        type: unreachable
+        table: 4400
+        metric: 42760
+      routing-policy:
+      - from: 198.51.100.26/32
+        table: 4400
+        priority: 11000

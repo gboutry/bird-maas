@@ -1,0 +1,67 @@
+inventory:
+  rack-profiles: |
+    [
+      {
+        "id": "rack-a",
+        "peers": [
+          {
+            "id": "tor1",
+            "chassis_id": "02:00:00:00:00:01",
+            "asn": 65040
+          },
+          {
+            "id": "tor2",
+            "chassis_id": "02:00:00:00:00:02",
+            "asn": 65041
+          }
+        ]
+      }
+    ]
+  host-identities: |
+    [
+      {
+        "machine_id": "host-a-id",
+        "local_asn": 4200000016,
+        "router_id": "192.0.2.16"
+      },
+      {
+        "machine_id": "host-b-id",
+        "local_asn": 4200000027,
+        "router_id": "192.0.2.27"
+      },
+      {
+        "machine_id": "host-c-id",
+        "local_asn": 4200000026,
+        "router_id": "192.0.2.26"
+      },
+      {
+        "machine_id": "card-a0-id",
+        "local_asn": 4200010011,
+        "router_id": "198.51.100.26"
+      },
+      {
+        "machine_id": "card-a1-id",
+        "local_asn": 4200010014,
+        "router_id": "198.51.100.10"
+      },
+      {
+        "machine_id": "card-b0-id",
+        "local_asn": 4200010013,
+        "router_id": "198.51.100.17"
+      },
+      {
+        "machine_id": "card-b1-id",
+        "local_asn": 4200010016,
+        "router_id": "198.51.100.16"
+      },
+      {
+        "machine_id": "card-c0-id",
+        "local_asn": 4200010012,
+        "router_id": "198.51.100.27"
+      },
+      {
+        "machine_id": "card-c1-id",
+        "local_asn": 4200010015,
+        "router_id": "198.51.100.15"
+      }
+    ]

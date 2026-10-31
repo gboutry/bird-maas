@@ -1,0 +1,254 @@
+[
+  {
+    "host": "host-a",
+    "numa_card": 0,
+    "machine": "11",
+    "serial": "synthetic-card-01",
+    "local_asn": 4200010011,
+    "vtep": "198.51.100.26/32",
+    "retain": {
+      "kernel_bond": "bond0",
+      "mode": "802.3ad",
+      "members": [
+        "enp3s0f0np0",
+        "enp3s0f1np1"
+      ],
+      "ovs_bridge": "br-data",
+      "ovs_uplink": "bond0",
+      "ovs_type": "doca"
+    },
+    "host_trunks": [
+      3500,
+      3502,
+      3504,
+      3506,
+      3508
+    ],
+    "underlay_peerings": [
+      {
+        "tor": 1,
+        "vlan": 3580,
+        "interface": "u3580",
+        "local_link_local": "fe80::2",
+        "peer_link_local": "fe80::1"
+      },
+      {
+        "tor": 2,
+        "vlan": 3581,
+        "interface": "u3581",
+        "local_link_local": "fe80::2",
+        "peer_link_local": "fe80::1"
+      }
+    ]
+  },
+  {
+    "host": "host-a",
+    "numa_card": 1,
+    "machine": "14",
+    "serial": "synthetic-card-02",
+    "local_asn": 4200010014,
+    "vtep": "198.51.100.10/32",
+    "retain": {
+      "kernel_bond": "bond0",
+      "mode": "802.3ad",
+      "members": [
+        "enp3s0f0np0",
+        "enp3s0f1np1"
+      ],
+      "ovs_bridge": "br-data",
+      "ovs_uplink": "bond0",
+      "ovs_type": "doca"
+    },
+    "host_trunks": [
+      3501,
+      3503,
+      3505,
+      3507,
+      3509
+    ],
+    "underlay_peerings": [
+      {
+        "tor": 1,
+        "vlan": 3582,
+        "interface": "u3582",
+        "local_link_local": "fe80::2",
+        "peer_link_local": "fe80::1"
+      },
+      {
+        "tor": 2,
+        "vlan": 3583,
+        "interface": "u3583",
+        "local_link_local": "fe80::2",
+        "peer_link_local": "fe80::1"
+      }
+    ]
+  },
+  {
+    "host": "host-b",
+    "numa_card": 0,
+    "machine": "13",
+    "serial": "synthetic-card-03",
+    "local_asn": 4200010013,
+    "vtep": "198.51.100.17/32",
+    "retain": {
+      "kernel_bond": "bond0",
+      "mode": "802.3ad",
+      "members": [
+        "enp3s0f0np0",
+        "enp3s0f1np1"
+      ],
+      "ovs_bridge": "br-data",
+      "ovs_uplink": "bond0",
+      "ovs_type": "doca"
+    },
+    "host_trunks": [
+      3510,
+      3512,
+      3514,
+      3516,
+      3518
+    ],
+    "underlay_peerings": [
+      {
+        "tor": 1,
+        "vlan": 3584,
+        "interface": "u3584",
+        "local_link_local": "fe80::2",
+        "peer_link_local": "fe80::1"
+      },
+      {
+        "tor": 2,
+        "vlan": 3585,
+        "interface": "u3585",
+        "local_link_local": "fe80::2",
+        "peer_link_local": "fe80::1"
+      }
+    ]
+  },
+  {
+    "host": "host-b",
+    "numa_card": 1,
+    "machine": "16",
+    "serial": "synthetic-card-04",
+    "local_asn": 4200010016,
+    "vtep": "198.51.100.16/32",
+    "retain": {
+      "kernel_bond": "bond0",
+      "mode": "802.3ad",
+      "members": [
+        "enp3s0f0np0",
+        "enp3s0f1np1"
+      ],
+      "ovs_bridge": "br-data",
+      "ovs_uplink": "bond0",
+      "ovs_type": "doca"
+    },
+    "host_trunks": [
+      3511,
+      3513,
+      3515,
+      3517,
+      3519
+    ],
+    "underlay_peerings": [
+      {
+        "tor": 1,
+        "vlan": 3586,
+        "interface": "u3586",
+        "local_link_local": "fe80::2",
+        "peer_link_local": "fe80::1"
+      },
+      {
+        "tor": 2,
+        "vlan": 3587,
+        "interface": "u3587",
+        "local_link_local": "fe80::2",
+        "peer_link_local": "fe80::1"
+      }
+    ]
+  },
+  {
+    "host": "host-c",
+    "numa_card": 0,
+    "machine": "12",
+    "serial": "synthetic-card-05",
+    "local_asn": 4200010012,
+    "vtep": "198.51.100.27/32",
+    "retain": {
+      "kernel_bond": "bond0",
+      "mode": "802.3ad",
+      "members": [
+        "enp3s0f0np0",
+        "enp3s0f1np1"
+      ],
+      "ovs_bridge": "br-data",
+      "ovs_uplink": "bond0",
+      "ovs_type": "doca"
+    },
+    "host_trunks": [
+      3520,
+      3522,
+      3524,
+      3526,
+      3528
+    ],
+    "underlay_peerings": [
+      {
+        "tor": 1,
+        "vlan": 3588,
+        "interface": "u3588",
+        "local_link_local": "fe80::2",
+        "peer_link_local": "fe80::1"
+      },
+      {
+        "tor": 2,
+        "vlan": 3589,
+        "interface": "u3589",
+        "local_link_local": "fe80::2",
+        "peer_link_local": "fe80::1"
+      }
+    ]
+  },
+  {
+    "host": "host-c",
+    "numa_card": 1,
+    "machine": "15",
+    "serial": "synthetic-card-06",
+    "local_asn": 4200010015,
+    "vtep": "198.51.100.15/32",
+    "retain": {
+      "kernel_bond": "bond0",
+      "mode": "802.3ad",
+      "members": [
+        "enp3s0f0np0",
+        "enp3s0f1np1"
+      ],
+      "ovs_bridge": "br-data",
+      "ovs_uplink": "bond0",
+      "ovs_type": "doca"
+    },
+    "host_trunks": [
+      3521,
+      3523,
+      3525,
+      3527,
+      3529
+    ],
+    "underlay_peerings": [
+      {
+        "tor": 1,
+        "vlan": 3590,
+        "interface": "u3590",
+        "local_link_local": "fe80::2",
+        "peer_link_local": "fe80::1"
+      },
+      {
+        "tor": 2,
+        "vlan": 3591,
+        "interface": "u3591",
+        "local_link_local": "fe80::2",
+        "peer_link_local": "fe80::1"
+      }
+    ]
+  }
+]
