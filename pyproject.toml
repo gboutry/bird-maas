@@ -17,12 +17,16 @@ dev = [
     "pytest-jubilant>=2,<3",
     "jsonschema>=4",
     "hypothesis>=6,<7",
+    "ty==0.0.95",
 ]
 
 [tool.pytest.ini_options]
 testpaths = ["tests/unit"]
 addopts = "-ra"
-markers = ["integration: requires an isolated Juju model and packed charms"]
+markers = [
+    "integration: requires an isolated Juju model and packed charms",
+    "slow: measured expensive tests omitted only from the explicit fast profile",
+]
 
 [tool.ruff]
 line-length = 99
@@ -30,3 +34,9 @@ target-version = "py312"
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "UP", "B", "PLC0415"]
+
+[tool.ty.rules]
+all = "error"
+
+[tool.ty.terminal]
+error-on-warning = true
