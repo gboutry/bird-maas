@@ -17,6 +17,10 @@ runbook covers operation of the resulting host policy and routing service.
 3. Provision interfaces, IPv6 link-local addresses, loopback /32 VIPs, source-wide
    policy rules and exact unreachable guards persistently. Gate workload startup
    on those objects. Confirm source selection and NUMA attachment identities.
+   BIRD expects protocol196 by default. For Netplan/networkd-owned static rules
+   and guards, explicitly set `policy-protocol=4`. The chosen tag applies to both
+   rule and guard checks; selectors, priorities, tables, catch-all scope and
+   metric42760 remain exact. It is not permission to adopt other static routes.
 4. Configure both TORs for unnumbered IPv4 extended-next-hop BGP, matching BFD,
    filters, limits and ingress preference policy. Independently verify DPU/TOR
    offload. Neither observer nor BIRD makes these physical changes.
@@ -46,7 +50,7 @@ it is not a 50 ms measured end-to-end failover guarantee.
 ## Updating and rollback
 
 Ordinary grant/topology proposals use native timed rollback. Withdrawals have
-no stale rollback target. A static table/source/priority migration must be
+no stale rollback target. A static table/source/priority/protocol migration must be
 provisioned and reviewed explicitly; it is not performed by this charm. Resolve
 reported drift before restarting. Do not manually restore an old private bundle:
 it may reauthorize revoked exports or credentials.

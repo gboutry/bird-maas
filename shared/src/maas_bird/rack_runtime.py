@@ -203,9 +203,12 @@ class RackService(OwnedBird):
                 raise RuntimeErrorBase("Disable the foreign vendor BIRD service before activation")
         routes = json.loads(run(["ip", "-4", "-j", "-N", "route", "show", "table", "all"]).stdout)
         for route in routes:
-            if (
-                str(route.get("table")) in {str(c.table) for c in plan.contexts}
-                and policy_objects.guard_key(route) is None
+            if str(route.get("table")) in {
+                str(c.table) for c in plan.contexts
+            } and policy_objects.guard_key(route) != (
+                int(route["table"]),
+                plan.policy_protocol,
+                policy_objects.GUARD_METRIC,
             ):
                 raise RuntimeErrorBase("Refusing to adopt pre-existing routes in dedicated tables")
 

@@ -29,6 +29,7 @@ from maas_bird.runtime import write_atomic
 def expected_policy(plan):
     """One catch-all source selector per /32; no destination can fall into main."""
     result = {
+        "protocol": plan.policy_protocol,
         "tables": sorted(c.table for c in plan.contexts),
         "sources": sorted(str(source) for c in plan.contexts for source in c.sources),
         "contexts": [
@@ -52,7 +53,7 @@ def expected_policy(plan):
                 "dst": "0.0.0.0/0",
                 "table": context.table,
                 "priority": context.rule_priority + offset,
-                "protocol": PROTOCOL,
+                "protocol": plan.policy_protocol,
             }
             for context in sorted(plan.contexts, key=lambda c: c.table)
             for offset, source in enumerate(sorted(context.sources))
@@ -67,6 +68,9 @@ def expected_policy(plan):
 def validate(
     expected, execute, *, check_routes=True, check_bindings=True, sysfs_root=Path("/sys")
 ):
+    protocol = expected.get("protocol", PROTOCOL)
+    if type(protocol) is not int or protocol not in (4, 196):
+        raise PolicyError("Unsupported static-policy protocol")
     if check_bindings and expected.get("ovs_bindings"):
         _validate_ovs_bindings(expected["ovs_bindings"], execute, sysfs_root)
     rules = json.loads(execute(["ip", "-4", "-j", "-N", "rule", "show"]).stdout)
@@ -83,13 +87,13 @@ def validate(
     if not set(expected["sources"]) <= local:
         raise PolicyError("Provision every declared source VIP as a /32 on lo")
     for table in expected["tables"]:
-        if not any(guard_key(route) == (table, PROTOCOL, GUARD_METRIC) for route in routes):
+        if not any(guard_key(route) == (table, protocol, GUARD_METRIC) for route in routes):
             raise PolicyError("Provision an exact unreachable-default guard in every host context")
     for context in expected.get("contexts", []) if check_routes else ():
         for route in routes:
             if str(route.get("table")) != str(context["table"]):
                 continue
-            if guard_key(route) == (context["table"], PROTOCOL, GUARD_METRIC):
+            if guard_key(route) == (context["table"], protocol, GUARD_METRIC):
                 continue
             devices = [hop.get("dev") for hop in route.get("nexthops", [route])]
             if (

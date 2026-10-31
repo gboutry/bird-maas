@@ -246,8 +246,16 @@ class RoutingDomain(Record):
 
 class MultiDomainPlan(Record):
     advertisement_mode: Literal["workload", "node-addresses"] = "workload"
+    policy_protocol: Annotated[int, Field(strict=True)] = 196
     host: Host
     domains: tuple[Plan, ...]
+
+    @field_validator("policy_protocol")
+    @classmethod
+    def supported_policy_protocol(cls, value):
+        if value not in (4, 196):
+            raise ValueError("policy-protocol must be 4 or 196")
+        return value
 
     @property
     def sessions(self):
@@ -288,3 +296,10 @@ def advertisement_mode(config):
     if value == "node-addresses":
         return "node-addresses"
     raise ValueError("advertisement-mode must be workload or node-addresses")
+
+
+def policy_protocol(config):
+    value = config.get("policy-protocol", 196)
+    if type(value) is not int or value not in (4, 196):
+        raise ValueError("policy-protocol must be 4 or 196")
+    return value

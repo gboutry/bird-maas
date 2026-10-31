@@ -130,7 +130,12 @@ def restrict(
                 }
             )
         )
-    return MultiDomainPlan(host=previous.host, domains=tuple(restricted), advertisement_mode=mode)
+    return MultiDomainPlan(
+        host=previous.host,
+        domains=tuple(restricted),
+        advertisement_mode=mode,
+        policy_protocol=previous.policy_protocol,
+    )
 
 
 def snapshots_for_resolution(documents: list[Advertisements]):

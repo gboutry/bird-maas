@@ -17,6 +17,7 @@ from maas_bird.models import (
     RoutingDomain,
     Session,
     advertisement_mode,
+    policy_protocol,
 )
 
 
@@ -90,7 +91,9 @@ def resolve_rack(uid, inventory, attachments, advertisements, local_links, confi
         ):
             raise InvalidIntent("Routing domain export allowlists overlap")
     _separation(plans)
-    return MultiDomainPlan(host=host, domains=plans, advertisement_mode=mode)
+    return MultiDomainPlan(
+        host=host, domains=plans, advertisement_mode=mode, policy_protocol=policy_protocol(config)
+    )
 
 
 def _domain(host, peers, domain, protected, attachments, advertisements, links, config, mode):

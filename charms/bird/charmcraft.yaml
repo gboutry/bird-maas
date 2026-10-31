@@ -96,6 +96,14 @@ config:
         Explicit local OVS internal-interface selectors (serial, bridge, port,
         physical uplink and optional uplink_bond). Only for BIRD sharing the
         OVS kernel, normally on the DPU. Empty never invokes OVS discovery.
+    policy-protocol:
+      type: int
+      default: 196
+      description: >-
+        Exact protocol tag of externally provisioned source rules and unreachable
+        guards: 196 for explicit provisioning, or 4 for Netplan/networkd static
+        objects. Does not adopt or rewrite objects. Changing the tag requires an
+        explicit static-policy migration before activation.
 actions:
   inspect:
     description: Show the accepted routing plan without credentials or full daemon configuration.
