@@ -1,4 +1,4 @@
-.PHONY: sync lint format test native namespaces pack schemas
+.PHONY: sync lint format test test-fast test-tooling lint-fast typecheck typecheck-fast check check-fast install-hooks native namespaces pack schemas
 sync:
 	uv sync --locked --python 3.12
 lint:
@@ -9,6 +9,25 @@ format:
 	uv run ruff format shared/src charms tests scripts
 test:
 	uv run --locked pytest --cov=maas_bird --cov-report=term-missing tests/unit
+# Hypothesis' pytest plugin automatically marks generated/stateful tests. The
+# slow marker is an explicit opt-out for individually measured expensive tests.
+test-fast:
+	uv run --offline --locked --no-sync pytest -q --strict-markers --strict-config -m 'not hypothesis and not slow' --no-cov tests/unit
+lint-fast:
+	uv run --offline --locked --no-sync ruff check shared/src charms tests scripts
+	uv run --offline --locked --no-sync ruff format --check shared/src charms tests scripts
+typecheck:
+	uv run --locked --no-sync ty check
+typecheck-fast:
+	uv run --offline --locked --no-sync ty check
+test-tooling:
+	uv run --locked pytest tests/tooling
+# Complete non-privileged developer verification. Native/namespace/cloud
+# acceptance stays explicit; this aggregate never launches a Juju deployment.
+check: lint typecheck test test-tooling
+check-fast: lint-fast typecheck-fast test-fast
+install-hooks:
+	python3 scripts/install_hooks.py
 native:
 	uv run --locked pytest tests/native
 namespaces:

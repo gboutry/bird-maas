@@ -1,0 +1,38 @@
+#!/bin/sh
+# maas-bird-owned-pre-commit-v1
+set -eu
+
+# Cover Git prechecks as well as lint/types/tests with one total budget. Expiry
+# rejects the commit; unfinished checks never count as passing.
+exec timeout --signal=KILL 5s sh -eu -c '
+root=$(git rev-parse --show-toplevel)
+cd "$root"
+
+# An unstaged fix or untracked helper must not make a broken index appear green.
+ensure_clean() {
+    if ! git diff --quiet --ignore-submodules=none --; then
+        echo "Stage or stash tracked changes before running commit checks." >&2
+        exit 1
+    fi
+    untracked=$(git ls-files --others --exclude-standard)
+    if test -n "$untracked"; then
+        echo "Stage or ignore untracked files before running commit checks." >&2
+        exit 1
+    fi
+    git diff --cached --check
+}
+ensure_clean
+before=$(git write-tree)
+
+# Bound Rust workers and run checks sequentially rather than competing for all
+# laptop CPUs. Dependency syncing and network access are disabled by check-fast.
+env RAYON_NUM_THREADS=2 make --no-print-directory -j1 check-fast </dev/null
+
+# Editors and parallel agents can change inputs while checks run. Require the
+# same staged tree and no later worktree changes before permitting this commit.
+ensure_clean
+if test "$before" != "$(git write-tree)"; then
+    echo "Prospective commit changed during checks; run them again." >&2
+    exit 1
+fi
+'

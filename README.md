@@ -124,10 +124,34 @@ hardware forwarding counters during normal operation and failover.
 
 ```bash
 uv sync --locked --python 3.12
-uv check
+make typecheck
 make lint
 make test
+make test-tooling
 ```
+
+`make test-fast` runs unit tests without Hypothesis-generated/stateful cases or
+explicitly marked `slow` tests. Hypothesis' pytest plugin marks new property tests
+automatically. `make test` still runs the complete product unit suite, including both
+categories; the fast profile is not a replacement for full verification.
+Developer-tooling integration tests that execute Git and hooks live under
+`tests/tooling` and run with `make test-tooling`. `make check` combines lint,
+type checking, the full product unit suite and tooling integration checks.
+
+The exact development-only ty version is recorded in `uv.lock`; `make sync`
+installs it alongside the other development dependencies. `make typecheck` uses
+that installed checker with every rule treated as an error. It does not invoke
+uv's implicit checker-version discovery.
+
+After `make sync`, `make check-fast` runs lint, the installed type checker and
+fast product unit tests without network access or dependency syncing. Opt in to the repository hook with
+`make install-hooks`. It refuses an existing hook or configured `core.hooksPath`
+rather than replacing them. The installed hook requires a fully staged working
+tree (including non-ignored new files), rejects inputs changed during the checks,
+runs checks sequentially with at most two Rust workers, and rejects the commit
+if the five-second total budget expires.
+A cold cache or slow machine can therefore reject a commit; unfinished checks
+never count as passing. Native, namespace and live acceptance remain separate.
 
 Native routing tests require BIRD 2.14. Set `LD_LIBRARY_PATH` only if your BIRD
 build needs libraries outside the system search path:
