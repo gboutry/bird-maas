@@ -113,6 +113,8 @@ def test_node_mode_hook_still_checks_native_addresses_before_applying(
         "configured": 10,
         "missing_routes": 0,
         "fallback_routes": 0,
+        "bfd_timer_issues": [],
+        "bfd_timer_mismatches": [],
     }
     monkeypatch.setattr("maas_bird.rack_runtime.RackService", lambda **_: service)
     secret = testing.Secret({s.id: "test-only" for s in resolve_rack(**inputs).sessions})
