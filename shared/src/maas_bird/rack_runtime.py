@@ -13,6 +13,7 @@ import re
 import shutil
 import time
 import uuid
+from decimal import Decimal
 from ipaddress import IPv4Interface
 from pathlib import Path
 from typing import override
@@ -31,6 +32,50 @@ from maas_bird.runtime import (
     run,
     write_atomic,
 )
+
+
+def _bfd_timer_health(plan, output):
+    """Compare effective TX intervals, without mistaking peer timers for local intent.
+
+    BIRD 2.14's Interval is max(local desired TX, peer required RX). Its Timeout
+    also depends on the peer's TX and multiplier, so this summary cannot prove
+    the local RX interval or multiplier. A mismatch is diagnostic only: an Up
+    session remains usable, but must not earn an unqualified Active status.
+    """
+    rows = [line.split() for line in output.splitlines()]
+    issues = []
+    mismatches = []
+    for domain in plan.domains:
+        for session in domain.sessions:
+            matching = [
+                row
+                for row in rows
+                if len(row) >= 3
+                and row[0].split("%", 1)[0] == str(session.peer)
+                and row[1] == session.interface
+                and row[2] == "Up"
+            ]
+            if not matching:
+                # Existing session health already reports Down/missing peers.
+                continue
+            if (
+                len(matching) != 1
+                or len(matching[0]) != 6
+                or not all(
+                    re.fullmatch(r"[0-9]+(?:\.[0-9]+)?", value) for value in matching[0][-2:]
+                )
+            ):
+                issues.append(f"{session.interface}: effective BFD timers unavailable")
+                continue
+            interval, timeout = (Decimal(value) * 1000 for value in matching[0][-2:])
+            if interval <= 0 or timeout <= 0:
+                issues.append(f"{session.interface}: effective BFD timers unavailable")
+            elif interval != domain.bfd_tx:
+                observed = format(interval.normalize(), "f")
+                message = f"{session.interface}: BFD TX {observed}ms, requested {domain.bfd_tx}ms"
+                issues.append(message)
+                mismatches.append(message)
+    return {"issues": issues, "mismatches": mismatches}
 
 
 class MigrationRequired(RuntimeErrorBase):
@@ -94,7 +139,7 @@ class RackService(OwnedBird):
             rows = [
                 line
                 for line in bfd.stdout.splitlines()
-                if line.split()
+                if len(line.split()) >= 3
                 and any(line.split()[0].split("%")[0] == peer.split("%")[0] for peer in neighbors)
                 and (not interfaces or line.split()[1] in interfaces)
             ]
@@ -143,11 +188,18 @@ class RackService(OwnedBird):
                     selected = [r for r in routes if r.get("dst") == str(prefix) and r.get("dev")]
                     missing += not selected
                     fallback += bool(selected) and not any(r["dev"] in local for r in selected)
+        timers = (
+            _bfd_timer_health(plan, bfd.stdout)
+            if not bfd.returncode
+            else {"issues": [], "mismatches": []}
+        )
         return {
             "configured": len(plan.sessions),
             "established": established,
             "missing_routes": missing,
             "fallback_routes": fallback,
+            "bfd_timer_issues": timers["issues"],
+            "bfd_timer_mismatches": timers["mismatches"],
             "up_sessions": [
                 s.id
                 for d in plan.domains

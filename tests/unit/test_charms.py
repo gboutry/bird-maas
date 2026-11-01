@@ -1,6 +1,7 @@
 import json
 from unittest.mock import Mock
 
+import pytest
 import scenario as testing
 from maas_bird import discovery
 from maas_bird.interfaces import decode, encode
@@ -26,6 +27,8 @@ def test_bird_disabled_does_not_install_or_start(charm_context, monkeypatch):
         "established": 2,
         "missing_routes": 0,
         "fallback_routes": 0,
+        "bfd_timer_issues": [],
+        "bfd_timer_mismatches": [],
     }
     monkeypatch.setattr("maas_bird.rack_runtime.RackService", lambda **kwargs: service)
     ctx = charm_context("bird")
@@ -115,7 +118,20 @@ def test_maas_missing_secret_is_blocked(charm_context):
     assert isinstance(out.unit_status, testing.BlockedStatus)
 
 
-def test_bird_complete_relations_apply(inputs, charm_context, monkeypatch):
+@pytest.mark.parametrize(
+    ("timer_issues", "timer_mismatches"),
+    [
+        ([], []),
+        (
+            ["eth0.3414: BFD TX 300ms, requested 100ms"],
+            ["eth0.3414: BFD TX 300ms, requested 100ms"],
+        ),
+        (["eth0.3414: effective BFD timers unavailable"], []),
+    ],
+)
+def test_bird_complete_relations_apply(
+    inputs, charm_context, monkeypatch, caplog, timer_issues, timer_mismatches
+):
     inputs = rack_inputs(inputs)
     monkeypatch.setattr("maas_bird.discovery.host_uuid", lambda: "host-uuid")
     monkeypatch.setattr("maas_bird.discovery.links", lambda: inputs["local_links"])
@@ -134,6 +150,8 @@ def test_bird_complete_relations_apply(inputs, charm_context, monkeypatch):
         "established": 2,
         "missing_routes": 0,
         "fallback_routes": 0,
+        "bfd_timer_issues": timer_issues,
+        "bfd_timer_mismatches": timer_mismatches,
     }
     monkeypatch.setattr("maas_bird.rack_runtime.RackService", lambda **kwargs: service)
     ctx = charm_context("bird")
@@ -152,7 +170,25 @@ def test_bird_complete_relations_apply(inputs, charm_context, monkeypatch):
         ctx.on.config_changed(),
         testing.State(config=config, secrets={secret}, relations={inv, attachments, ads}),
     )
-    assert out.unit_status == testing.ActiveStatus("Rack a: 2/2 BGP/BFD Up")
+    if timer_mismatches:
+        assert out.unit_status == testing.BlockedStatus(
+            "Rack a: 2/2 BGP/BFD Up; "
+            + "; ".join(timer_issues)
+            + "; check peer timers and BFD session renegotiation"
+        )
+    elif timer_issues:
+        assert out.unit_status == testing.WaitingStatus(
+            "Rack a: 2/2 BGP/BFD Up; "
+            + "; ".join(timer_issues)
+            + "; degraded routing or local inputs"
+        )
+    else:
+        assert out.unit_status == testing.ActiveStatus("Rack a: 2/2 BGP/BFD Up")
+    if timer_issues:
+        assert "Effective BFD timer diagnostics: " + "; ".join(timer_issues) in caplog.text
+        assert "first-secret" not in caplog.text and "second-secret" not in caplog.text
+        service.stop.assert_not_called()
+        service.invalidate.assert_not_called()
     assert len(service.apply_plan.call_args.args[0].sessions) == 2
     assert len(service.apply_plan.call_args.args[0].contexts) == 2
     assert out.get_relation(inv.id).local_unit_data["system_uuid"] == '"host-uuid"'
@@ -196,6 +232,8 @@ def test_removing_a_trusted_relation_stops_owned_routing(charm_context, monkeypa
         "established": 2,
         "missing_routes": 0,
         "fallback_routes": 0,
+        "bfd_timer_issues": [],
+        "bfd_timer_mismatches": [],
     }
     monkeypatch.setattr("maas_bird.rack_runtime.RackService", lambda **kwargs: service)
     ctx = charm_context("bird")
@@ -232,6 +270,8 @@ def test_service_address_must_be_an_actual_loopback_host_route(inputs, charm_con
         "established": 2,
         "missing_routes": 0,
         "fallback_routes": 0,
+        "bfd_timer_issues": [],
+        "bfd_timer_mismatches": [],
     }
     monkeypatch.setattr("maas_bird.rack_runtime.RackService", lambda **kwargs: service)
     ctx = charm_context("bird")
@@ -279,6 +319,8 @@ def test_bird_numa_context_event_uses_policy_runtime(numa_inputs, charm_context,
         "established": 2,
         "missing_routes": 0,
         "fallback_routes": 0,
+        "bfd_timer_issues": [],
+        "bfd_timer_mismatches": [],
     }
     monkeypatch.setattr("maas_bird.rack_runtime.RackService", lambda **kwargs: service)
     ctx = charm_context("bird")
@@ -331,6 +373,8 @@ def test_bird_multiple_domains_use_one_host_runtime(domain_inputs, charm_context
         "established": 4,
         "missing_routes": 0,
         "fallback_routes": 0,
+        "bfd_timer_issues": [],
+        "bfd_timer_mismatches": [],
     }
     monkeypatch.setattr("maas_bird.rack_runtime.RackService", lambda **kwargs: service)
     ctx = charm_context("bird")

@@ -88,6 +88,8 @@ def test_same_link_local_peer_is_joined_to_its_own_interface(health_probe, scope
         "established": 1,
         "missing_routes": 0,
         "fallback_routes": 0,
+        "bfd_timer_issues": [f"{second.interface}: BFD TX 300ms, requested 50ms"],
+        "bfd_timer_mismatches": [f"{second.interface}: BFD TX 300ms, requested 50ms"],
         "up_sessions": [second.id],
     }
 
@@ -126,3 +128,88 @@ def test_missing_capability_or_down_channel_is_not_counted_as_established(health
     result = service.health(plan)
     assert result["up_sessions"] == []
     assert result["established"] == 0
+
+
+def test_effective_100ms_interval_matches_requested_tx_without_inferring_peer_multiplier(
+    health_probe,
+):
+    service, plan, responses = health_probe
+    domain = plan.domains[0].model_copy(update={"bfd_tx": 100, "bfd_rx": 100})
+    plan = plan.model_copy(update={"domains": (domain,)})
+    outputs(plan, responses)
+    # Timeout includes the peer's multiplier. A different timeout alone cannot
+    # prove the local multiplier/RX configuration is wrong from this CLI table.
+    responses[("show", "bfd", "sessions")].stdout = responses[
+        ("show", "bfd", "sessions")
+    ].stdout.replace("0.300 0.900", "0.100 0.500")
+    result = service.health(plan)
+    assert result["established"] == 2
+    assert result["bfd_timer_issues"] == []
+    assert result["bfd_timer_mismatches"] == []
+
+
+def test_up_sessions_with_slower_effective_timers_remain_usable_but_report_mismatch(health_probe):
+    service, plan, responses = health_probe
+    domain = plan.domains[0].model_copy(update={"bfd_tx": 100, "bfd_rx": 100})
+    plan = plan.model_copy(update={"domains": (domain,)})
+    outputs(plan, responses)
+    result = service.health(plan)
+    assert result["established"] == 2
+    assert result["up_sessions"] == [s.id for s in plan.sessions]
+    assert result["bfd_timer_mismatches"] == [
+        f"{s.interface}: BFD TX 300ms, requested 100ms" for s in plan.sessions
+    ]
+    assert result["bfd_timer_issues"] == [
+        f"{s.interface}: BFD TX 300ms, requested 100ms" for s in plan.sessions
+    ]
+
+
+@pytest.mark.parametrize(
+    "timers",
+    ["", "0.100", "NaN 0.300", "inf 0.300", "-0.100 0.300", "0 0.300", "0.100 0"],
+)
+def test_up_session_with_unreadable_timers_is_not_silently_healthy(health_probe, timers):
+    service, plan, responses = health_probe
+    outputs(plan, responses)
+    responses[("show", "bfd", "sessions")].stdout = responses[
+        ("show", "bfd", "sessions")
+    ].stdout.replace("0.300 0.900", timers)
+    result = service.health(plan)
+    assert result["established"] == 2  # Transport state is distinct from timer compliance.
+    assert result["bfd_timer_mismatches"] == []
+    assert result["bfd_timer_issues"] == [
+        f"{s.interface}: effective BFD timers unavailable" for s in plan.sessions
+    ]
+
+
+def test_unrelated_correct_timer_cannot_hide_scoped_peer_mismatch(health_probe):
+    service, plan, responses = health_probe
+    outputs(plan, responses)
+    responses[("show", "bfd", "sessions")].stdout += "\nfe80::1 unrelated0 Up 12:00:00 0.050 0.150"
+    assert service.health(plan)["bfd_timer_issues"] == [
+        f"{s.interface}: BFD TX 300ms, requested 50ms" for s in plan.sessions
+    ]
+
+
+def test_each_domain_uses_its_own_requested_interval():
+    plan = resolve_rack(**rack_inputs())
+    assert len({d.bfd_tx for d in plan.domains}) == 2
+    rows = [
+        f"{s.peer} {s.interface} Up 12:00:00 {d.bfd_tx / 1000:.3f} 0.900"
+        for d in plan.domains
+        for s in d.sessions
+    ]
+    assert rack_runtime._bfd_timer_health(plan, "\n".join(rows)) == {
+        "issues": [],
+        "mismatches": [],
+    }
+    # Change only replication's observed interval; public's stricter request
+    # must not be overwritten by the second routing domain's settings.
+    domain = plan.domains[1]
+    session = domain.sessions[0]
+    rows[-len(domain.sessions)] = f"{session.peer} {session.interface} Up 12:00:00 0.100 0.900"
+    message = f"{session.interface}: BFD TX 100ms, requested 300ms"
+    assert rack_runtime._bfd_timer_health(plan, "\n".join(rows)) == {
+        "issues": [message],
+        "mismatches": [message],
+    }

@@ -40,6 +40,22 @@ accepted plan only. Plan does not apply it. Reconcile reports current unit statu
 Active requires native BGP/BFD and the declared imported routes. A fallback path
 is reported as degraded rather than fully local service.
 
+The unit also compares each Up session's effective BFD transmit interval with
+that routing domain's requested interval. For example,
+`BFD TX 300ms, requested 100ms` puts the unit in Blocked status, even when BGP
+and BFD remain Up. Check the peer's timer configuration and whether its BFD
+session needs renegotiation. Missing or malformed timer observations are
+reported as unavailable with Waiting status, allowing a later reconciliation
+to retry the observation. Diagnostic logs include each affected interface and
+its requested/observed interval. These checks do not stop usable routing sessions.
+
+BIRD's effective transmit interval includes the peer's receive requirement;
+a mismatch does not by itself prove that the local configuration failed to
+apply. The BIRD session summary cannot independently verify the local receive
+interval or multiplier, because its timeout also depends on the peer's timers.
+Check native state at both endpoints before attributing a mismatch or claiming
+the requested failure-detection timing is active.
+
 For physical acceptance, collect scoped BIRD/BFD state, both directions' route
 selection, packet loss/outage distributions, hardware flow/ASIC counters, and
 per-process CPU under idle and Ceph load. Exercise each TOR/path, then both paths,

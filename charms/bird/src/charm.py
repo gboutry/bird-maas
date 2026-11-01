@@ -2,6 +2,7 @@
 """Principal BIRD operator with unit MAAS authority; static host policy is external."""
 
 import json
+import logging
 from ipaddress import IPv4Interface
 
 import ops
@@ -15,6 +16,8 @@ from maas_bird.rack import ScopeError, rack_id
 from maas_bird.rack_runtime import RackService
 from maas_bird.resolver import AuthorizationWithdrawn, NotReady, resolve_rack
 from maas_bird.runtime import RuntimeErrorBase, SessionsPending
+
+logger = logging.getLogger(__name__)
 
 
 class BirdCharm(ops.CharmBase):
@@ -170,16 +173,30 @@ class BirdCharm(ops.CharmBase):
             )
             if plan.advertisement_mode == "node-addresses":
                 message += "; node addresses, service health not checked"
+            timer_issues = health["bfd_timer_issues"]
+            if timer_issues:
+                logger.warning("Effective BFD timer diagnostics: %s", "; ".join(timer_issues))
+                # Keep status bounded on hosts with many routing domains. Full
+                # per-interface observations remain available from native BIRD.
+                message += "; " + "; ".join(timer_issues[:2])
+                if len(timer_issues) > 2:
+                    message += f"; {len(timer_issues) - 2} more BFD timer issues"
             degraded = (
                 health["established"] != health["configured"]
                 or health["missing_routes"]
                 or health["fallback_routes"]
+                or timer_issues
             )
-            self.unit.status = (
-                ops.WaitingStatus(message + "; degraded routing or local inputs")
-                if warnings or degraded
-                else ops.ActiveStatus(message)
-            )
+            if health["bfd_timer_mismatches"]:
+                self.unit.status = ops.BlockedStatus(
+                    message + "; check peer timers and BFD session renegotiation"
+                )
+            elif warnings or degraded:
+                self.unit.status = ops.WaitingStatus(
+                    message + "; degraded routing or local inputs"
+                )
+            else:
+                self.unit.status = ops.ActiveStatus(message)
         except (AuthorizationWithdrawn, ScopeError) as exc:
             try:
                 service.invalidate()
