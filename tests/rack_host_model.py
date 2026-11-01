@@ -70,6 +70,8 @@ class ProvisionedHost:
             assert args[1:] == ["--version"] or args[1:3] == ["-p", "-c"]
             return subprocess.CompletedProcess(args, 0, "BIRD version 2.14\n", "")
         if args[0] == "systemctl":
+            if args[1:] == ["is-failed", "--quiet", "maas-bird.service"]:
+                return subprocess.CompletedProcess(args, 1, "", "")
             if "is-active" in args or "is-enabled" in args:
                 active = args[-1] == "maas-bird.service" and self.active
                 return subprocess.CompletedProcess(args, 0 if active else 3, "", "")

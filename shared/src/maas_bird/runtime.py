@@ -65,7 +65,13 @@ class OwnedBird:
         return run(["systemctl", "is-active", "maas-bird.service"], check=False).returncode == 0
 
     def _start(self):
-        run(["systemctl", "reset-failed", "maas-bird.service"])
+        # A newly installed inactive unit can have no loaded failure record;
+        # reset-failed then fails even though enable --now can start it normally.
+        failed = run(["systemctl", "is-failed", "--quiet", "maas-bird.service"], check=False)
+        if failed.returncode == 0:
+            run(["systemctl", "reset-failed", "maas-bird.service"])
+        elif failed.returncode != 1:
+            raise RuntimeErrorBase("Cannot inspect owned service failure state")
         run(["systemctl", "enable", "--now", "maas-bird.service"])
 
     def _write_config(self, path, contents):

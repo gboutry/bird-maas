@@ -5,6 +5,7 @@ systemd tests cover those boundaries. The model rejects every unsupported comman
 """
 
 import re
+import subprocess
 from copy import deepcopy
 
 import pytest
@@ -297,3 +298,44 @@ def test_reauthorization_does_not_adopt_foreign_routes_after_invalidation(rack_e
     assert not host.active
     assert not service.manifest.exists()
     assert host.kernel.snapshot() == before
+
+
+@pytest.mark.parametrize("failed", [False, True])
+def test_owned_start_resets_only_a_failed_service(tmp_path, monkeypatch, failed):
+    calls = []
+
+    def run(args, check=True):
+        calls.append((args, check))
+        return subprocess.CompletedProcess(
+            args, int(not failed) if "is-failed" in args else 0, "", ""
+        )
+
+    monkeypatch.setattr(runtime, "run", run)
+    runtime.OwnedBird(tmp_path)._start()
+
+    assert calls[0] == (["systemctl", "is-failed", "--quiet", "maas-bird.service"], False)
+    if failed:
+        assert calls[1] == (["systemctl", "reset-failed", "maas-bird.service"], True)
+    else:
+        assert len(calls) == 2
+    assert calls[-1] == (["systemctl", "enable", "--now", "maas-bird.service"], True)
+
+
+@pytest.mark.parametrize("fault", ["query", "reset", "enable"])
+def test_owned_start_never_ignores_a_real_service_failure(tmp_path, monkeypatch, fault):
+    calls = []
+
+    def run(args, check=True):
+        calls.append(args)
+        if "is-failed" in args:
+            return subprocess.CompletedProcess(args, 2 if fault == "query" else 0, "", "")
+        if args[1] == {"reset": "reset-failed", "enable": "enable"}.get(fault):
+            raise RuntimeErrorBase("native failure")
+        return subprocess.CompletedProcess(args, 0, "", "")
+
+    monkeypatch.setattr(runtime, "run", run)
+    with pytest.raises(RuntimeErrorBase):
+        runtime.OwnedBird(tmp_path)._start()
+
+    if fault != "enable":
+        assert not any("enable" in args for args in calls)
