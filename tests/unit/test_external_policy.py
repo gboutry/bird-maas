@@ -4,8 +4,12 @@ import json
 import subprocess
 
 import pytest
+from hypothesis import given
+from hypothesis import strategies as st
 from maas_bird import external_policy
+from maas_bird.models import ContextIntent
 from maas_bird.resolver import resolve_rack
+from pydantic import ValidationError
 
 from tests.factories import rack_inputs
 from tests.rack_host_model import ProvisionedHost
@@ -79,3 +83,73 @@ def test_ip_read_failure_is_not_treated_as_absence():
 
     with pytest.raises(subprocess.CalledProcessError):
         external_policy.validate({"rules": [], "tables": []}, failure)
+
+
+def low_priority_plan():
+    """Model a host whose existing marked traffic is selected at priority 75."""
+    inputs = rack_inputs()
+    domains = json.loads(inputs["config"]["routing-domains"])
+    priority = 40
+    for domain in domains:
+        for context in domain["contexts"]:
+            context["rule_priority"] = priority
+            priority += 4
+    inputs["config"]["routing-domains"] = json.dumps(domains)
+    return resolve_rack(**inputs)
+
+
+def test_source_guards_can_precede_existing_marked_host_policy():
+    plan = low_priority_plan()
+    host = ProvisionedHost(plan)
+    host.service = object()
+    host.kernel.rules.append({"priority": 75, "src": "all", "fwmark": "0x123", "table": 3190})
+    before = host.kernel.snapshot()
+
+    external_policy.validate(external_policy.expected_policy(plan), host.execute)
+
+    assert host.kernel.snapshot() == before
+    assert all(rule["priority"] < 75 for rule in external_policy.expected_policy(plan)["rules"])
+    assert all("add" not in args and "del" not in args for args in host.calls)
+
+
+def test_earlier_marked_rule_still_cannot_bypass_low_priority_guards():
+    plan = low_priority_plan()
+    host = ProvisionedHost(plan)
+    host.service = object()
+    host.kernel.rules.append({"priority": 20, "src": "all", "fwmark": "0x123", "table": 3190})
+    before = host.kernel.snapshot()
+
+    with pytest.raises(external_policy.PolicyError, match="earlier policy selector"):
+        external_policy.validate(external_policy.expected_policy(plan), host.execute)
+
+    assert host.kernel.snapshot() == before
+    assert all("add" not in args and "del" not in args for args in host.calls)
+
+
+@pytest.mark.parametrize("priority", [0, -1, 32001, True])
+def test_invalid_source_rule_priority_is_rejected(priority):
+    context = {
+        "id": "numa0",
+        "numa_node": 0,
+        "table": 4510,
+        "rule_priority": priority,
+        "sources": ["198.18.248.11/32"],
+    }
+    with pytest.raises(ValidationError):
+        ContextIntent.model_validate(context)
+
+
+@given(priority=st.integers(min_value=1, max_value=999))
+def test_all_positive_priorities_below_the_old_floor_are_preserved(priority):
+    # Operators choose placement relative to existing host rules. The model must
+    # preserve that placement rather than moving a source guard behind them.
+    context = ContextIntent.model_validate(
+        {
+            "id": "numa0",
+            "numa_node": 0,
+            "table": 4510,
+            "rule_priority": priority,
+            "sources": ["198.18.248.11/32"],
+        }
+    )
+    assert context.rule_priority == priority

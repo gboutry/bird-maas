@@ -196,7 +196,10 @@ class ContextIntent(Record):
     numa_node: Annotated[int, Field(strict=True, ge=0)] | None
     attachment_ids: tuple[str, ...] | None = None
     table: Annotated[int, Field(strict=True, ge=1000, le=4294967295)]
-    rule_priority: Annotated[int, Field(strict=True, ge=1000, le=32000)]
+    # Priority zero belongs to the kernel local-address lookup. Allow positive
+    # priorities before existing host policy; overlap validation still rejects
+    # any earlier selector that could bypass a managed source's guard.
+    rule_priority: Annotated[int, Field(strict=True, ge=1, le=32000)]
     sources: tuple[IPv4Network, ...]
 
     @field_validator("attachment_ids")

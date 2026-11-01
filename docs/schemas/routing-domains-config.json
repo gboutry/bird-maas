@@ -55,7 +55,7 @@
         },
         "rule_priority": {
           "maximum": 32000,
-          "minimum": 1000,
+          "minimum": 1,
           "title": "Rule Priority",
           "type": "integer"
         },
