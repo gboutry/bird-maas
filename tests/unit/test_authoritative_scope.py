@@ -101,6 +101,42 @@ def test_different_racks_share_one_application(records, charm_context, monkeypat
     assert set(out.get_relation(relation.id).local_app_data) == {"unit-0", "unit-1"}
 
 
+def test_separate_rack_apps_share_inventory_without_other_machine_responses(
+    records, charm_context, monkeypatch
+):
+    # Both applications have unit 0. Their response keys may be identical, but
+    # relation boundaries must keep each app's response bound to its own UUID.
+    fetch = Mock(return_value=records[0])
+    monkeypatch.setattr("maas_bird.maas.MaasClient.machines", fetch)
+    state, first = state_for(records, ["u1"])
+    first = replace(first, remote_app_name="bird-rack-a")
+    second = testing.Relation(
+        "inventory",
+        remote_app_name="bird-rack-b",
+        remote_app_data={"rack": '"consumer-cannot-select-this"'},
+        remote_units_data={0: encode(InventoryRequest(system_uuid="u3"))},
+    )
+    ctx = charm_context("maas-inventory")
+    out = ctx.run(ctx.on.config_changed(), replace(state, relations={first, second}))
+
+    for relation, app, uid, machine, rack in (
+        (first, "bird-rack-a", "u1", "m1", "a"),
+        (second, "bird-rack-b", "u3", "m3", "b"),
+    ):
+        bag = out.get_relation(relation.id).local_app_data
+        assert set(bag) == {"unit-0"}
+        document = read_response(bag, f"{app}/0")
+        assert document.scope_state == "ready"
+        assert document.system_uuid == uid and document.rack == rack
+        assert document.host is not None and document.host.peers is not None
+        assert document.host.machine_id == machine
+        assert [peer.chassis_id for peer in document.host.peers] == [rack]
+        # MAAS also returned m2. Neither consumer requested it, so it must not
+        # appear as an additional host record in either relation's payload.
+        assert "hosts" not in json.loads(bag["unit-0"])
+    fetch.assert_called_once()
+
+
 @pytest.mark.parametrize("bad", [None, "unknown"])
 def test_unknown_unit_does_not_block_another_rack(records, charm_context, monkeypatch, bad):
     monkeypatch.setattr("maas_bird.maas.MaasClient.machines", lambda _: records[0])

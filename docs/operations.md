@@ -113,6 +113,14 @@ one host and its approved peers, with a 48 KiB field bound. Application-databag
 updates can still fan out to all consumer units; controller capacity is not
 established by content tests.
 
+A BIRD application per rack is also supported when smaller application groups
+are useful: integrate each application with the same `maas-inventory:inventory`
+endpoint and place its units on the intended hosts. Each relation carries only
+responses for its own requesting units, not every machine known to MAAS. Do not
+add a rack selector to either BIRD or the DPU observer: MAAS remains authoritative
+for each unit's hardware UUID. This is an optional grouping, not a requirement;
+units in one application can still belong to different racks.
+
 Use the host/network source of truth to generate and review allocations. Start
 with one host, then expand with measured hook latency, controller load and
 recovery behavior. The 60-rack wire test demonstrates bounded fields, not Juju
