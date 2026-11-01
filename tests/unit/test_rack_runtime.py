@@ -10,7 +10,7 @@ from copy import deepcopy
 
 import pytest
 from maas_bird import external_policy, runtime
-from maas_bird.rack_runtime import MigrationRequired
+from maas_bird.rack_runtime import MigrationRequired, RackService
 from maas_bird.render import render_rack
 from maas_bird.runtime import RuntimeErrorBase
 
@@ -135,7 +135,9 @@ def test_decommission_leaves_all_static_host_policy_untouched(rack_environment):
     service.remove()
     assert host.kernel.snapshot() == baseline
     assert not service.directory.exists()
-    assert not service.unit.exists()
+    assert len(list((service.root / "var/backups/maas-bird").glob("*.json"))) == 1
+    assert service.unit.is_symlink()
+    assert service.unit.readlink().as_posix() == "/dev/null"
     assert not host.active
 
 
@@ -313,12 +315,12 @@ def test_owned_start_resets_only_a_failed_service(tmp_path, monkeypatch, failed)
     monkeypatch.setattr(runtime, "run", run)
     runtime.OwnedBird(tmp_path)._start()
 
-    assert calls[0] == (["systemctl", "is-failed", "--quiet", "maas-bird.service"], False)
+    assert calls[0] == (["systemctl", "is-failed", "--quiet", "bird.service"], False)
     if failed:
-        assert calls[1] == (["systemctl", "reset-failed", "maas-bird.service"], True)
+        assert calls[1] == (["systemctl", "reset-failed", "bird.service"], True)
     else:
         assert len(calls) == 2
-    assert calls[-1] == (["systemctl", "enable", "--now", "maas-bird.service"], True)
+    assert calls[-1] == (["systemctl", "enable", "--now", "bird.service"], True)
 
 
 @pytest.mark.parametrize("fault", ["query", "reset", "enable"])
@@ -339,3 +341,36 @@ def test_owned_start_never_ignores_a_real_service_failure(tmp_path, monkeypatch,
 
     if fault != "enable":
         assert not any("enable" in args for args in calls)
+
+
+@pytest.mark.parametrize("legacy", ["etc/maas-bird", "etc/systemd/system/maas-bird.service"])
+def test_old_parallel_layout_blocks_upgrade_without_stopping_existing_routing(
+    rack_environment, legacy
+):
+    _, plan, passwords, service, host = rack_environment
+    path = service.root / legacy
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.touch()
+    host.active = True
+    with pytest.raises(MigrationRequired, match="previous maas-bird.service"):
+        service.apply_plan(plan, passwords)
+    assert host.active
+    assert path.exists()
+    assert not service.marker.exists()
+    assert not any(args[0] == "systemctl" for args in host.calls)
+
+
+def test_redeployment_after_decommission_can_claim_system_bird(rack_environment, monkeypatch):
+    _, plan, passwords, service, host = rack_environment
+    service.apply_plan(plan, passwords)
+    service.remove()
+    host.enabled = "masked"
+    replacement = RackService(service.root, owner="model:bird/42")
+    host.service = replacement
+    monkeypatch.setattr(replacement, "_control", host.control)
+    monkeypatch.setattr(replacement, "health", service.health)
+    replacement.apply_plan(plan, passwords)
+    assert host.active
+    assert replacement.state() == plan
+    assert replacement.marker.read_text() == "model:bird/42\n"
+    assert len(list((service.root / "var/backups/maas-bird").glob("*.json"))) == 1

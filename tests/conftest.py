@@ -6,7 +6,7 @@ from unittest.mock import Mock
 import pytest
 import scenario as testing
 import yaml
-from maas_bird import external_policy, rack_runtime, runtime
+from maas_bird import external_policy, rack_runtime, runtime, system_service
 from maas_bird.rack_runtime import RackService
 from maas_bird.resolver import resolve_rack
 
@@ -62,6 +62,7 @@ def rack_environment(tmp_path, monkeypatch):
     host.service = service
     monkeypatch.setattr(rack_runtime, "run", host.execute)
     monkeypatch.setattr(runtime, "run", host.execute)
+    monkeypatch.setattr(system_service, "run", host.execute)
     native_which = rack_runtime.shutil.which
     monkeypatch.setattr(
         rack_runtime.shutil,

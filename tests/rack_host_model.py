@@ -36,6 +36,7 @@ class ProvisionedHost:
         self.sources = [str(source) for c in plan.contexts for source in c.sources]
         self.calls = []
         self.active = False
+        self.enabled = "disabled"
         self.generation = ""
         self.service = None
         self.confirm = "Reconfiguration confirmed"
@@ -70,12 +71,24 @@ class ProvisionedHost:
             assert args[1:] == ["--version"] or args[1:3] == ["-p", "-c"]
             return subprocess.CompletedProcess(args, 0, "BIRD version 2.14\n", "")
         if args[0] == "systemctl":
-            if args[1:] == ["is-failed", "--quiet", "maas-bird.service"]:
+            if args[1:] == ["is-failed", "--quiet", "bird.service"]:
                 return subprocess.CompletedProcess(args, 1, "", "")
-            if "is-active" in args or "is-enabled" in args:
-                active = args[-1] == "maas-bird.service" and self.active
-                return subprocess.CompletedProcess(args, 0 if active else 3, "", "")
-            assert args[1] in {"enable", "disable", "reset-failed", "daemon-reload"}, args
+            if "is-enabled" in args:
+                return subprocess.CompletedProcess(args, 1, self.enabled + "\n", "")
+            if "is-active" in args:
+                return subprocess.CompletedProcess(
+                    args, 0 if self.active else 3, "active\n" if self.active else "inactive\n", ""
+                )
+            assert args[1] in {
+                "enable",
+                "disable",
+                "stop",
+                "start",
+                "reset-failed",
+                "daemon-reload",
+            }, args
+            if "stop" in args:
+                self.active = False
             if "enable" in args and "--now" in args:
                 external_policy.startup_gate(self.service.directory)
                 self.generation = self.service.config.read_text()

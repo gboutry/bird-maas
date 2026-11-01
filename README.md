@@ -30,6 +30,13 @@ Juju machines; they are not subordinate charms. BIRD runs wherever routing is re
 underlay. The DPU observer only observes forwarding configuration; it does not
 create it. MAAS determines rack membership per BIRD unit, not per application.
 
+Placing a BIRD unit on a machine authorizes it to manage that machine's system
+`bird.service`, including takeover of an existing BIRD installation when enabled
+and its required inputs validate. It preserves the original configuration and
+rolls back a failed first startup. The shared Python package stays in the built
+charm environment; `/etc` contains no copied charm modules. See
+[service ownership and rollback](docs/operations.md#updating-and-rollback).
+
 ```mermaid
 flowchart LR
     MAAS[MAAS HTTPS API] --> INV[maas-inventory]

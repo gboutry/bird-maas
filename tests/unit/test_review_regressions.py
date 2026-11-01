@@ -385,10 +385,12 @@ def test_failed_activation_then_producer_removal_cannot_resurrect_exports(
     host.fail_control = ("show", "symbols")
     failed = ctx.run(ctx.on.config_changed(), state)
     assert isinstance(failed.unit_status, testing.BlockedStatus)
-    assert service.state() is not None and service.state().prefixes == ()
-    assert all(
-        f'route {prefix} via "lo";' not in service.config.read_text() for prefix in plan.prefixes
-    )
+    # The first managed startup was never acknowledged: restore the previous
+    # inactive system service rather than retain managed routing authority.
+    assert service.state() is None
+    assert not host.active and not service.config.exists()
+    assert not service.manifest.exists()
+    assert not service.marker.exists()
     host.fail_control = None
     removed = ctx.run(ctx.on.relation_broken(failed.get_relation(relations[endpoint].id)), failed)
     if endpoint == "inventory":

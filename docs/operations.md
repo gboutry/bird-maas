@@ -77,13 +77,37 @@ and verify the persistent host policy, then deploy the unit-scoped model disable
 Old options (`routing-domain`, `kernel-table`, `import-prefixes`,
 `export-allowlist`, `routing-contexts`) are no longer supported. Preserve secrets
 and allowlisted evidence through an operator-reviewed migration; do not auto-adopt
-foreign BIRD files, tables or vendor services.
+foreign routing tables. Unit placement explicitly authorizes takeover of the
+host's system `bird.service` once routing inputs and static policy validate.
+An existing parallel `maas-bird.service` or `/etc/maas-bird` layout blocks the new
+service until the previous version has decommissioned it; the new unit never
+starts a second routing daemon alongside it.
 
-To remove the new service: set `enabled=false`, then run `decommission confirm=true`.
-The operation stops only this unit's owned BIRD daemon and removes its own files.
+The charm uses the system `bird.service`, not a parallel daemon. Its private
+accepted-state bundle and original systemd definitions live in
+`/var/lib/maas-bird/`. BIRD reads a root-owned configuration materialized in
+`/run/maas-bird-config/` only after the startup gate passes. Python code remains
+in the packed charm environment; the service calls that environment's interpreter
+with `-m maas_bird.external_policy`. No application Python is installed under
+`/etc`. The host's original `/etc/bird` configuration is preserved.
+
+On the first takeover, the original local unit and drop-ins, enablement and active
+state are saved before the old daemon stops. Failure before the managed baseline
+is acknowledged restores that service. After takeover succeeds, later routing
+changes retain native timed rollback; they never restore the pre-charm exports.
+Transient systemd overrides and vendor drop-ins require review before takeover.
+Charm refresh rewrites the startup entry point if its interpreter path changes,
+without stopping an unchanged accepted routing generation.
+
+To remove the managed service: set `enabled=false`, then run `decommission confirm=true`.
+The operation stops this unit's system BIRD daemon and deletes accepted routing
+authority. It persistently masks `bird.service` and archives the private original
+service backup under `/var/backups/maas-bird/` for operator recovery. Removing
+the active ownership directory permits a later BIRD unit to take over normally.
 Static VIPs/rules/guards, DPU forwarding and TOR configuration remain with their
-owners. A vendor `bird.service` mask installed to prevent package-postinst startup
-is intentionally retained; do not resurrect an unreviewed vendor daemon.
+owners. The mask prevents an old vendor configuration from advertising again after
+removal or reboot. Restoring that backup and unmasking the service is an explicit
+operator recovery operation.
 
 ## Release gates
 

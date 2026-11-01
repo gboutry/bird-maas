@@ -11,6 +11,7 @@ import json
 import os
 import re
 import shutil
+import sys
 import time
 import uuid
 from decimal import Decimal
@@ -20,8 +21,7 @@ from typing import override
 
 from charmlibs import apt
 
-from maas_bird import external_policy, ovsdb, policy_objects
-from maas_bird import runtime as daemon_runtime
+from maas_bird import external_policy, policy_objects
 from maas_bird.models import MultiDomainPlan, sessions_for_context
 from maas_bird.render import protocol_name, quoted, render_rack
 from maas_bird.runtime import (
@@ -32,6 +32,7 @@ from maas_bird.runtime import (
     run,
     write_atomic,
 )
+from maas_bird.system_service import SystemBird
 
 
 def _bfd_timer_health(plan, output):
@@ -88,6 +89,7 @@ class RackService(OwnedBird):
     def __init__(self, root=Path("/"), owner="development"):
         super().__init__(root, owner)
         self.config = root / "run/maas-bird-config/bird.conf"
+        self.system_service = SystemBird(root, self.directory)
 
     @property
     def manifest(self):
@@ -227,6 +229,14 @@ class RackService(OwnedBird):
                 raise
 
     def _prepare_rack(self, plan):
+        # The old parallel daemon must not remain alive beside system BIRD. Its
+        # version's decommission action owns removal of the old Python layout.
+        legacy = (
+            self.root / "etc/maas-bird",
+            self.root / "etc/systemd/system/maas-bird.service",
+        )
+        if any(path.exists() or path.is_symlink() for path in legacy):
+            raise MigrationRequired("Decommission the previous maas-bird.service layout first")
         current = self.state()
         self.verify_current(check_bindings=False)
         # A rejected proposal is not evidence of drift in the active generation.
@@ -248,35 +258,24 @@ class RackService(OwnedBird):
             self._check_unclaimed_network(plan)
         if (self.directory / "policy.json").exists():
             raise MigrationRequired("Decommission the prototype's owned policy before migration")
-        if not bool(shutil.which("bird")):
-            if (self.root / "etc/bird").exists():
-                raise RuntimeErrorBase(
-                    "Inspect existing vendor configuration before installing bird2"
-                )
-            # New package postinst must never start a vendor daemon outside our
-            # policy gate. The intentionally retained mask survives interrupted
-            # installation and reboot; decommission does not resurrect it.
-            run(["systemctl", "mask", "bird.service"])
-            write_atomic(self.directory / "vendor-mask-owned", "bird.service\n", 0o600)
+        self._install_rack_files()
+        if self.system_service.pending():
+            self._check_unclaimed_network(plan)
+        if shutil.which("bird") is None:
+            # The installed gate denies package-postinst startup without a bundle.
             apt.add_package("bird2", update_cache=True)
         response = run(["bird", "--version"])
-        version = response.stdout + response.stderr
-        if not re.search(r"\b2\.14(?:\.\d+)?\b", version):
+        if not re.search(r"\b2\.14(?:\.\d+)?\b", response.stdout + response.stderr):
             raise RuntimeErrorBase("This release requires the validated BIRD 2.14 series")
-        self._install_rack_files()
 
     def _claim_rack(self, plan):
-        if self.directory.exists() or self.unit.exists() or self.policy_unit.exists():
+        if self.directory.exists() or self.policy_unit.exists():
             raise RuntimeErrorBase("Refusing to adopt existing BIRD configuration")
-        self._check_unclaimed_network(plan)
         self.directory.mkdir(parents=True, mode=0o750)
         write_atomic(self.marker, self.owner + "\n", 0o600)
 
     @staticmethod
     def _check_unclaimed_network(plan):
-        for verb in ("is-active", "is-enabled"):
-            if run(["systemctl", verb, "bird.service"], check=False).returncode == 0:
-                raise RuntimeErrorBase("Disable the foreign vendor BIRD service before activation")
         routes = json.loads(run(["ip", "-4", "-j", "-N", "route", "show", "table", "all"]).stdout)
         for route in routes:
             if str(route.get("table")) in {
@@ -289,46 +288,39 @@ class RackService(OwnedBird):
                 raise RuntimeErrorBase("Refusing to adopt pre-existing routes in dedicated tables")
 
     def _install_rack_files(self):
-        # Install the minimal stdlib startup gate and this unit's service file.
-        package = self.directory / "maas_bird"
-        package.mkdir(exist_ok=True)
-        files = {
-            package / "__init__.py": "",
-            package / "policy_objects.py": Path(policy_objects.__file__).read_text(),
-            package / "runtime.py": Path(daemon_runtime.__file__).read_text(),
-            package / "external_policy.py": Path(external_policy.__file__).read_text(),
-            package / "ovsdb.py": Path(ovsdb.__file__).read_text(),
-            self.directory / "check_policy.py": (
-                "from maas_bird.external_policy import main\nmain()\n"
-            ),
-            self.unit: _unit(),
-        }
-        pending = self.directory / "reload-pending"
-        changed = any(
-            not path.exists() or path.read_text() != text for path, text in files.items()
-        )
-        if changed:
-            write_atomic(pending, "pending\n", 0o600)
-            for path, text in files.items():
-                if not path.exists() or path.read_text() != text:
-                    path.parent.mkdir(parents=True, exist_ok=True)
-                    write_atomic(path, text, 0o644 if path == self.unit else 0o600)
-        if pending.exists():
-            run(["systemctl", "daemon-reload"])
-            pending.unlink()
+        # Code stays in the packed charm environment. systemd calls its module
+        # entry point; refresh updates this stable interpreter path and the unit.
+        self.system_service.install(_unit(sys.executable))
 
     def apply_plan(self, plan, passwords, *, restrictive=False, observations=None):
         self._producers = observations if observations is not None else self.observations()
         self._credentials = self._credential_hashes(plan, passwords)
         if plan.host.system_uuid != external_policy.host_uuid():
             raise RuntimeErrorBase("Proposed routing belongs to another physical host")
-        self._prepare_rack(plan)
+        claimed_here = not self.marker.exists()
+        try:
+            self._prepare_rack(plan)
+            if self._bundle() is None:
+                self._bootstrap(plan, passwords)
+            if self.system_service.pending():
+                self.system_service.commit()
+        except Exception:
+            if self.system_service.pending():
+                self.invalidate()
+                self.system_service.rollback()
+                self.marker.unlink(missing_ok=True)
+                self.directory.rmdir()
+            elif (
+                claimed_here and self.marker.exists() and not self.system_service.journal.exists()
+            ):
+                if self.marker.read_text() == self.owner + "\n":
+                    self.marker.unlink()
+                    self.directory.rmdir()
+            raise
         if not restrictive:
             # Grants retain full validation of the accepted generation. A
             # restriction instead validates only its own reduced binding set.
             self.verify_current()
-        if self._bundle() is None:
-            self._bootstrap(plan, passwords)
         bundle = self._bundle()
         assert bundle is not None
         logical = render_rack(plan, passwords)
@@ -598,42 +590,23 @@ class RackService(OwnedBird):
             return
         self.invalidate()
         self.stop()
-        allowed = {
-            "owner",
-            "state.json",
-            "bird.conf",
-            "candidate.conf",
-            "active-policy.json",
-            "check_policy.py",
-            "reload-pending",
-            "exports.json",
-            "maas_bird",
-            "activation.json",
-            "vendor-mask-owned",
-        }
+        allowed = {"owner", "state.json", "system-service.json", "systemd-reload-pending"}
         if any(path.name not in allowed for path in self.directory.iterdir()):
             raise RuntimeErrorBase("Unknown files prevent decommission; inspect owned directory")
-        for path in self.directory.iterdir():
-            if path.name == "maas_bird":
-                for name in (
-                    "__init__.py",
-                    "policy_objects.py",
-                    "external_policy.py",
-                    "ovsdb.py",
-                    "runtime.py",
-                ):
-                    (path / name).unlink(missing_ok=True)
-                path.rmdir()
-            else:
-                path.unlink()
+        self.system_service.decommission()
+        self.marker.unlink()
         self.directory.rmdir()
-        self.unit.unlink(missing_ok=True)
-        run(["systemctl", "daemon-reload"])
 
 
-def _unit():
-    return """[Unit]
-Description=Rack-scoped BIRD routing
+def _unit(python):
+    # systemd expands percent specifiers even inside quoted arguments.
+    if not Path(python).is_absolute() or any(c in python for c in "\n\r\0"):
+        raise RuntimeErrorBase("Startup interpreter must be an absolute executable path")
+    interpreter = (
+        python.replace("$", "$$").replace("%", "%%").replace("\\", "\\\\").replace('"', '\\"')
+    )
+    return f'''[Unit]
+Description=BIRD routing managed by Juju
 After=network-online.target
 Wants=network-online.target
 StartLimitIntervalSec=0
@@ -643,9 +616,9 @@ User=bird
 Group=bird
 # Only the control socket directory belongs to the daemon user. Declaring the
 # configuration here would make systemd recursively chown it before ExecStart.
-RuntimeDirectory=maas-bird
-ExecStartPre=+/usr/bin/python3 -B /etc/maas-bird/check_policy.py /etc/maas-bird
-ExecStart=/usr/sbin/bird -f -c /run/maas-bird-config/bird.conf -s /run/maas-bird/bird.ctl
+RuntimeDirectory=bird
+ExecStartPre=+"{interpreter}" -B -m maas_bird.external_policy /var/lib/maas-bird
+ExecStart=/usr/sbin/bird -f -c /run/maas-bird-config/bird.conf -s /run/bird/bird.ctl
 Restart=on-failure
 RestartSec=5
 NoNewPrivileges=true
@@ -658,4 +631,4 @@ CapabilityBoundingSet=CAP_NET_ADMIN CAP_NET_BIND_SERVICE CAP_NET_RAW
 AmbientCapabilities=CAP_NET_ADMIN CAP_NET_BIND_SERVICE CAP_NET_RAW
 [Install]
 WantedBy=multi-user.target
-"""
+'''

@@ -104,7 +104,7 @@ binding removes that session from the durable restrictive floor before a new
 grant. Unknown discovery is not treated as an authoritative empty observation.
 Removing the local opt-in list also removes the old logical sessions.
 
-The installed stdlib-only startup checker re-reads the OVS binding and kernel
+The startup checker in the charm environment re-reads the OVS binding and kernel
 ifindex. Recreated ports cannot inherit accepted boot authority merely by using
 the same name. It remains fail closed if OVS is unavailable. Static source-wide
 rules and unreachable-default guards are still checked before reconciling even

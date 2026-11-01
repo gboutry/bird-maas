@@ -40,7 +40,8 @@ config:
   options:
     enabled:
       type: boolean
-      description: Explicitly enable package installation and owned routing service.
+      description: Enable takeover and management of the system bird.service after inputs validate.
+        Unit placement authorizes takeover; false withdraws managed routing.
       default: false
     advertisement-mode:
       type: string

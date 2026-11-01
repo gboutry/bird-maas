@@ -51,28 +51,28 @@ class OwnedBird:
     def __init__(self, root: Path = Path("/"), owner: str = "development"):
         self.owner = owner
         self.root = root
-        self.directory = root / "etc/maas-bird"
+        self.directory = root / "var/lib/maas-bird"
         self.config = self.directory / "bird.conf"
         self.marker = self.directory / "owner"
-        self.unit = root / "etc/systemd/system/maas-bird.service"
-        self.socket = "/run/maas-bird/bird.ctl"
+        self.unit = root / "etc/systemd/system/bird.service"
+        self.socket = "/run/bird/bird.ctl"
         self.policy_unit = self.unit.with_name("maas-bird-policy.service")
 
     def _control(self, *args, check=True):
         return run(["birdc", "-s", self.socket, *args], check=check)
 
     def _active(self):
-        return run(["systemctl", "is-active", "maas-bird.service"], check=False).returncode == 0
+        return run(["systemctl", "is-active", "bird.service"], check=False).returncode == 0
 
     def _start(self):
         # A newly installed inactive unit can have no loaded failure record;
         # reset-failed then fails even though enable --now can start it normally.
-        failed = run(["systemctl", "is-failed", "--quiet", "maas-bird.service"], check=False)
+        failed = run(["systemctl", "is-failed", "--quiet", "bird.service"], check=False)
         if failed.returncode == 0:
-            run(["systemctl", "reset-failed", "maas-bird.service"])
+            run(["systemctl", "reset-failed", "bird.service"])
         elif failed.returncode != 1:
             raise RuntimeErrorBase("Cannot inspect owned service failure state")
-        run(["systemctl", "enable", "--now", "maas-bird.service"])
+        run(["systemctl", "enable", "--now", "bird.service"])
 
     def _write_config(self, path, contents):
         group = grp.getgrnam("bird").gr_gid
@@ -81,7 +81,7 @@ class OwnedBird:
 
     def stop(self):
         if self.marker.exists() and self.marker.read_text() == self.owner + "\n":
-            run(["systemctl", "disable", "--now", "maas-bird.service"])
+            run(["systemctl", "disable", "--now", "bird.service"])
 
     def invalidate(self):
         """Remove durable startup material before attempting process stop."""

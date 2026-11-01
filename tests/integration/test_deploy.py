@@ -160,7 +160,7 @@ def test_two_rack_https_inventory_delivery_and_removed_host(juju: jubilant.Juju,
         result = juju.exec(
             "sh",
             "-c",
-            "test ! -e /etc/maas-bird/owner && ! systemctl is-active --quiet maas-bird",
+            "test ! -e /var/lib/maas-bird/owner && ! systemctl is-active --quiet bird",
             unit=app + "/0",
         )
         assert result.return_code == 0
