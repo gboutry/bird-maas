@@ -25,6 +25,7 @@ def render_rack(plan: MultiDomainPlan, passwords: dict[str, str]) -> str:
     if len(set(domain_tags)) != len(domain_tags):
         raise ValueError("Routing domain symbol collision")
     text = f"router id {plan.host.router_id};\nprotocol device devices {{ scan time 1; }};\n"
+    text += _link_local_discovery(plan)
     # One BFD instance avoids competing wildcard receivers. Interface-specific
     # timers preserve independent public/replication settings within that instance.
     text += "protocol bfd fabric_bfd {\n"
@@ -44,6 +45,30 @@ def render_rack(plan: MultiDomainPlan, passwords: dict[str, str]) -> str:
     for domain in plan.domains:
         text += _domain(domain, passwords)
     return text
+
+
+def _link_local_discovery(plan: MultiDomainPlan) -> str:
+    """Let interface-based unnumbered peers discover our link-local addresses.
+
+    These are discovery messages, not authority to configure clients: no default
+    router, SLAAC prefixes, DNS data or learned routes are advertised. Never use
+    wildcard interface patterns, including when every session is withdrawn.
+    """
+    interfaces = sorted({session.interface for session in plan.sessions})
+    if not interfaces:
+        return ""
+    text = "protocol radv fabric_discovery {\n propagate routes no;\n"
+    for interface in interfaces:
+        text += f""" interface {quoted(interface)} {{
+  min ra interval 3; max ra interval 5;
+  default lifetime 0; current hop limit 0; link mtu 0;
+  reachable time 0; retrans timer 0;
+  managed no; other config no;
+  rdnss local yes; dnssl local yes;
+  prefix ::/0 {{ skip yes; }};
+ }};
+"""
+    return text + "}\n"
 
 
 def _domain(domain: Plan, passwords: dict[str, str]) -> str:

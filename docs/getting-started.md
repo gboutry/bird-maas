@@ -118,6 +118,14 @@ flush as a preparation or rollback step.
 
 ## Switch requirements
 
+BIRD sends link-local discovery advertisements on its approved session interfaces.
+Interface-based unnumbered peers can use these to learn the host's link-local
+address. These advertisements have zero router lifetime and advertise no IPv6
+prefixes, routes, DNS settings or client configuration. They do not make the host
+a default IPv6 router. Permit IPv6 router advertisements on the transit links as
+well as neighbor solicitations and advertisements.
+
+
 Ask the fabric owner to prepare and persist the following on both TORs:
 
 - Unnumbered eBGP over IPv6 link-local with IPv4 extended-next-hop. Link-local
