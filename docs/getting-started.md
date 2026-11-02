@@ -165,6 +165,12 @@ public inherits 300ms. BFD intervals must be 50â€“60000ms; the multiplier is 1â€
 BGP hold time must be at least three keepalive intervals. Always coordinate an
 override with that domain's TOR sessions.
 
+Every generated BGP session sets `connect delay time 1`, rather than inheriting
+BIRD's five-second initial connection delay. This is separate from the two-second
+connection retry interval and from BFD failure detection. It does not guarantee
+one-second failback: peer recovery, session establishment and route installation
+also contribute to convergence.
+
 The DPU forwarding owner must independently prepare the correct representor,
 VLAN and uplink path. The supplied observer checks existing state only. If kernel
 LLDP names and OVS uplink names differ, confirm that the implementation can

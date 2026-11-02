@@ -117,6 +117,7 @@ protocol bgp {bgp} {{
  neighbor {session.peer}%{session.interface} as {session.remote_asn};
  interface {quoted(session.interface)}; password {quoted(password)};
  direct; strict bind yes; check link yes; bfd yes;
+ connect delay time 1;
  connect retry time 2; error wait time 1, 5;
  hold time {domain.hold_time}; keepalive time {domain.keepalive_time};
  graceful restart off;

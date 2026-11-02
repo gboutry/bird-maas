@@ -319,7 +319,9 @@ def test_supported_rack_configuration_native_parser(tmp_path, mode):
         )
         plan = plan.model_copy(update={"domains": domains})
     path = tmp_path / "rack.conf"
-    path.write_text(render_rack(plan, {s.id: "test-only" for s in plan.sessions}))
+    config = render_rack(plan, {s.id: "test-only" for s in plan.sessions})
+    assert config.count("connect delay time 1;") == len(plan.sessions)
+    path.write_text(config)
     subprocess.run([str(BIRD), "-p", "-c", str(path)], check=True, capture_output=True)
 
 

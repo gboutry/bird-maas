@@ -8,7 +8,23 @@ from hypothesis import strategies as st
 from maas_bird.render import render_rack
 from maas_bird.resolver import InvalidIntent, resolve_rack
 
-from tests.factories import rack_inputs
+from tests.factories import ovs_inputs, rack_inputs, ten_vf_inputs
+
+
+@pytest.mark.parametrize(
+    "inputs_factory",
+    [rack_inputs, ten_vf_inputs, ovs_inputs],
+    ids=["storage-domains", "ten-vfs", "ovs-underlay"],
+)
+def test_every_bgp_session_has_one_second_initial_connect_delay(inputs_factory):
+    """Retry timing does not override BIRD's separate startup connection delay."""
+    plan = resolve_rack(**inputs_factory())
+    assert plan.sessions
+    config = render_rack(plan, {session.id: "example" for session in plan.sessions})
+
+    assert config.count("protocol bgp ") == len(plan.sessions)
+    assert config.count("connect delay time 1;") == len(plan.sessions)
+    assert config.count("connect retry time 2;") == len(plan.sessions)
 
 
 @settings(max_examples=24)
