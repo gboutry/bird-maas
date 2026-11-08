@@ -1,0 +1,22 @@
+ovn-nbctl --may-exist lr-add nlab-tf-router
+ovn-nbctl --may-exist ls-add nlab-tf-provider
+ovn-nbctl --may-exist lrp-add nlab-tf-router nlab-tf-router-tenant 02:00:00:ef:00:10 172.30.10.1/24
+ovn-nbctl --may-exist lsp-add nlab-tf-tenant nlab-tf-tenant-router
+ovn-nbctl lsp-set-type nlab-tf-tenant-router router
+ovn-nbctl lsp-set-addresses nlab-tf-tenant-router router
+ovn-nbctl lsp-set-options nlab-tf-tenant-router router-port=nlab-tf-router-tenant
+ovn-nbctl --may-exist lrp-add nlab-tf-router nlab-tf-router-provider 02:00:00:ef:00:01 192.0.2.1/24
+ovn-nbctl --may-exist lsp-add nlab-tf-provider nlab-tf-provider-router
+ovn-nbctl lsp-set-type nlab-tf-provider-router router
+ovn-nbctl lsp-set-addresses nlab-tf-provider-router router
+ovn-nbctl lsp-set-options nlab-tf-provider-router router-port=nlab-tf-router-provider
+ovn-nbctl --may-exist lsp-add nlab-tf-provider nlab-tf-localnet
+ovn-nbctl lsp-set-type nlab-tf-localnet localnet
+ovn-nbctl lsp-set-addresses nlab-tf-localnet unknown
+ovn-nbctl lsp-set-options nlab-tf-localnet network_name=physnet-provider
+ovn-nbctl lrp-set-gateway-chassis nlab-tf-router-provider ${gateways.r1.system_uuid} 100
+ovn-nbctl lrp-set-gateway-chassis nlab-tf-router-provider ${gateways.r2.system_uuid} 90
+%{ for name, endpoint in endpoints ~}
+ovn-nbctl --may-exist lr-nat-add nlab-tf-router dnat_and_snat ${endpoint.floating} ${endpoint.address}
+%{ endfor ~}
+ovn-nbctl --timeout=30 --wait=hv sync

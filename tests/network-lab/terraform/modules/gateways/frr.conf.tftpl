@@ -1,0 +1,32 @@
+frr defaults traditional
+hostname ${gateway.name}
+service integrated-vtysh-config
+ip forwarding
+ipv6 forwarding
+ip prefix-list GATEWAY-ORIGIN seq 10 permit ${gateway.address}/32
+ip prefix-list GP-IMPORT seq 10 permit 10.205.10.20/30 ge 32 le 32
+ip prefix-list GP-IMPORT seq 20 permit 10.205.251.1/32
+ip prefix-list GP-IMPORT seq 30 permit 10.205.251.2/32
+route-map GATEWAY-ORIGIN permit 10
+ match ip address prefix-list GATEWAY-ORIGIN
+exit
+route-map GP-IMPORT permit 10
+ match ip address prefix-list GP-IMPORT
+exit
+router bgp ${gateway.asn}
+ bgp router-id ${gateway.address}
+ neighbor fe80::1 remote-as ${65101 + (gateway.rack - 1) * 2}
+ neighbor fe80::1 interface fast0.3404
+ neighbor fe80::1 password ${password}
+ neighbor fe80::1 bfd
+ neighbor fe80::1 capability extended-nexthop
+ address-family ipv4 unicast
+  network ${gateway.address}/32
+  neighbor fe80::1 activate
+  neighbor fe80::1 route-map GATEWAY-ORIGIN out
+  neighbor fe80::1 route-map GP-IMPORT in
+  neighbor fe80::1 maximum-prefix 6
+ exit-address-family
+exit
+bfd
+exit

@@ -1,0 +1,112 @@
+frr defaults traditional
+hostname ${name}
+service integrated-vtysh-config
+ip forwarding
+ipv6 forwarding
+interface lo
+ ip address ${node.loopback}/32
+exit
+%{ for domain, settings in domains ~}
+%{ if settings.vrf != "" ~}
+vrf ${settings.vrf}
+exit-vrf
+%{ endif ~}
+%{ for peer, remote_as in node.peers ~}
+interface ${peer}${settings.vlan == 0 ? "" : ".${settings.vlan}"}
+ no ipv6 nd suppress-ra
+ ipv6 nd ra-interval 5
+exit
+%{ endfor ~}
+%{ if domain == "general" ~}
+ip prefix-list CORE-general seq 5 permit 10.205.250.0/24 ge 32 le 32
+%{ for i, prefix in gateway_prefixes ~}
+ip prefix-list CORE-general seq ${100 + i} permit ${prefix}
+%{ endfor ~}
+%{ endif ~}
+%{ for i, prefix in flatten([for role in roles : [for j, host in hosts : "${cidrhost(role.address_block, 20 + j)}/32"] if role.domain == domain]) ~}
+ip prefix-list CORE-${domain} seq ${10 + i} permit ${prefix}
+%{ endfor ~}
+route-map CORE-${domain} permit 10
+ match ip address prefix-list CORE-${domain}
+exit
+%{ for session in sessions ~}
+%{ if session.domain == domain ~}
+ip prefix-list IN-${session.id} seq 10 permit ${session.prefix}
+%{ for i, prefix in session.imports ~}
+ip prefix-list OUT-${session.id} seq ${10 + i} permit ${prefix}
+%{ endfor ~}
+route-map OUT-${session.id} permit 10
+ match ip address prefix-list OUT-${session.id}
+exit
+route-map IN-${session.id} permit 10
+ match ip address prefix-list IN-${session.id}
+exit
+%{ endif ~}
+%{ endfor ~}
+router bgp ${node.asn}${settings.vrf == "" ? "" : " vrf ${settings.vrf}"}
+ bgp router-id ${node.loopback}
+ bgp bestpath as-path multipath-relax
+ no bgp default ipv4-unicast
+%{ for peer, remote_as in node.peers ~}
+ neighbor ${peer}${settings.vlan == 0 ? "" : ".${settings.vlan}"} interface remote-as ${remote_as}
+ neighbor ${peer}${settings.vlan == 0 ? "" : ".${settings.vlan}"} bfd
+ neighbor ${peer}${settings.vlan == 0 ? "" : ".${settings.vlan}"} bfd strict
+ neighbor ${peer}${settings.vlan == 0 ? "" : ".${settings.vlan}"} capability extended-nexthop
+%{ endfor ~}
+%{ for session in sessions ~}
+%{ if session.domain == domain ~}
+ neighbor ${session.address} remote-as ${session.asn}
+ neighbor ${session.address} interface ${session.interface}
+ neighbor ${session.address} password ${passwords[session.id]}
+ neighbor ${session.address} bfd
+ neighbor ${session.address} timers 3 9
+ neighbor ${session.address} capability extended-nexthop
+%{ endif ~}
+%{ endfor ~}
+ address-family ipv4 unicast
+%{ if domain == "general" ~}
+  network ${node.loopback}/32
+%{ endif ~}
+  maximum-paths 4
+%{ for peer, remote_as in node.peers ~}
+  neighbor ${peer}${settings.vlan == 0 ? "" : ".${settings.vlan}"} activate
+  neighbor ${peer}${settings.vlan == 0 ? "" : ".${settings.vlan}"} route-map CORE-${domain} in
+  neighbor ${peer}${settings.vlan == 0 ? "" : ".${settings.vlan}"} route-map CORE-${domain} out
+%{ endfor ~}
+%{ for session in sessions ~}
+%{ if session.domain == domain ~}
+  neighbor ${session.address} activate
+  neighbor ${session.address} route-map IN-${session.id} in
+  neighbor ${session.address} route-map OUT-${session.id} out
+  neighbor ${session.address} maximum-prefix 1
+%{ endif ~}
+%{ endfor ~}
+ exit-address-family
+exit
+%{ endfor ~}
+bfd
+exit
+
+bgp extcommunity-list standard LAB-PROVIDER-RT permit rt 65000:3405
+route-map LAB-PROVIDER-EVPN permit 10
+ match extcommunity LAB-PROVIDER-RT
+ set ip next-hop unchanged
+exit
+router bgp ${node.asn}
+ address-family l2vpn evpn
+%{ for peer, remote_as in node.peers ~}
+  neighbor ${peer} activate
+  neighbor ${peer} route-map LAB-PROVIDER-EVPN in
+  neighbor ${peer} route-map LAB-PROVIDER-EVPN out
+  neighbor ${peer} maximum-prefix 128
+%{ endfor ~}
+%{ if is_tor ~}
+  advertise-all-vni
+  vni 3405
+   rd ${node.loopback}:3405
+   route-target import 65000:3405
+   route-target export 65000:3405
+  exit-vni
+%{ endif ~}
+ exit-address-family
+exit
