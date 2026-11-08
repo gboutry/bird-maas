@@ -11,6 +11,8 @@ from typing import Any, cast
 from maas_bird import ovsdb
 from maas_bird.models import Identity, OvsPort
 
+_PCI_FUNCTION = re.compile(r"[0-9a-f]{4}:[0-9a-f]{2}:[0-9a-f]{2}\.([0-7])")
+
 
 class DiscoveryError(RuntimeError):
     pass
@@ -53,6 +55,8 @@ class LocalLink:
     link_local: IPv6Address | None
     numa_node: int | None = None
     ovs_port: OvsPort | None = None
+    parent_interface: str | None = None
+    link_up: bool | None = None
 
     def __post_init__(self):
         if self.ovs_port is None:
@@ -92,20 +96,31 @@ def links(root: Path = Path("/sys")) -> list[LocalLink]:
         if not device_link.exists():
             continue
         device = device_link.resolve()
-        pf_path = device / "physfn"
+        # Virtio PCI netdevs point to a virtio child, not directly to the PCI
+        # function. Preserve the real PCI identity and permanent port MAC;
+        # this does not turn a virtual NIC into an observed SR-IOV VF.
+        pci_device = device
+        if re.fullmatch(r"virtio[0-9]+", device.name):
+            if (device / "subsystem").resolve() != (root / "bus/virtio").resolve():
+                continue
+            pci_device = device.parent
+            if not _PCI_FUNCTION.fullmatch(pci_device.name):
+                continue
+        pf_path = pci_device / "physfn"
         vf = None
         if pf_path.exists():
             pf = pf_path.resolve()
-            candidates = [int(p.name[6:]) for p in pf.glob("virtfn*") if p.resolve() == device]
+            candidates = [int(p.name[6:]) for p in pf.glob("virtfn*") if p.resolve() == pci_device]
             if len(candidates) != 1:
                 raise DiscoveryError("Cannot uniquely determine VF index")
             vf = candidates[0]
         else:
-            pf = device
+            pf = pci_device
         identity = serials.get(pf.name)
         if identity is None:
             # Ordinary NIC backend: a permanent port MAC, not a mutable interface address.
-            pf_netdevs = list((pf / "net").glob("*"))
+            net_parent = device if device != pci_device and vf is None else pf
+            pf_netdevs = list((net_parent / "net").glob("*"))
             if len(pf_netdevs) != 1:
                 continue
             output = command(["ethtool", "-P", pf_netdevs[0].name]).strip()
@@ -114,7 +129,7 @@ def links(root: Path = Path("/sys")) -> list[LocalLink]:
                 continue
             identity = Identity(scheme="permanent-mac", value=match_mac[1].lower())
         # Conventional PCI host functions only; controllers not discoverable here are unsupported.
-        match = re.fullmatch(r"[0-9a-f]{4}:[0-9a-f]{2}:[0-9a-f]{2}\.([0-7])", pf.name)
+        match = _PCI_FUNCTION.fullmatch(pf.name)
         if not match:
             continue
         ll = [
@@ -140,6 +155,11 @@ def links(root: Path = Path("/sys")) -> list[LocalLink]:
                 vlan,
                 ll[0] if len(ll) == 1 else None,
                 node,
+                parent_interface=parent_name,
+                link_up=(
+                    {"UP", "LOWER_UP"} <= set(address.get("flags", []))
+                    and {"UP", "LOWER_UP"} <= set(by_name.get(parent_name, {}).get("flags", []))
+                ),
             )
         )
     return result

@@ -23,16 +23,23 @@ parts:
 name: dpu-attachments
 title: Dpu Attachments
 summary: Publish read-only DPU card identity and verified host attachment observations.
-description: Principal observer for existing devlink, OVS VLAN membership and LLDP
-  state. Never configures forwarding or runs BIRD.
+description: Principal observer for devlink, OVS VLAN membership and LLDP state,
+  or explicitly selected native host-NIC observations. Never configures forwarding
+  or runs BIRD.
 provides:
   attachments:
     interface: host-attachments
     optional: true
 config:
   options:
+    backend:
+      type: string
+      description: Attachment observation backend, dpu or native-nic. Native NIC
+        observation runs on the host and requires its own identity/function/VLAN policy.
+      default: dpu
     attachments:
       type: string
-      description: JSON array of explicitly approved card/function/VLAN/uplink/TOR
-        mappings.
+      description: JSON array of approved attachment mappings. The dpu backend uses
+        card serials and host-function mappings; native-nic uses observed identity,
+        host function, VLAN and parent uplink selectors.
       default: '[]'

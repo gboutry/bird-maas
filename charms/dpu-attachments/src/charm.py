@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
-"""Observe native local DPU attachments independently of application rack placement."""
+"""Observe local DPU or host-NIC attachments independently of rack placement."""
 
 import ops
-from maas_bird import discovery, dpu
+from maas_bird import discovery, dpu, nic
 from maas_bird.charm_support import config_string, json_list, observe, relations
 from maas_bird.interfaces import publish
 from maas_bird.models import Attachments, Card
@@ -32,7 +32,11 @@ class DpuAttachmentsCharm(ops.CharmBase):
                         raise
             ready = [a.ready for card in document.cards or () for a in card.attachments or ()]
             self.unit.status = (
-                ops.ActiveStatus("Attachments validated against devlink, OVS and LLDP")
+                ops.ActiveStatus(
+                    "Attachments validated against native NICs and LLDP"
+                    if config_string(self.config, "backend") == "native-nic"
+                    else "Attachments validated against devlink, OVS and LLDP"
+                )
                 if ready and all(ready)
                 else ops.WaitingStatus("Card identity published; attachments not ready")
             )
@@ -47,6 +51,11 @@ class DpuAttachmentsCharm(ops.CharmBase):
 
     def _observations(self):
         configured = json_list(config_string(self.config, "attachments"), "attachments")
+        backend = config_string(self.config, "backend")
+        if backend == "native-nic":
+            return nic.observe(configured)
+        if backend != "dpu":
+            raise ValueError("Unknown attachment observation backend")
         identities = {identity.value: identity for identity in discovery.cards().values()}
         local_config = [item for item in configured if item.get("serial") in identities]
         if local_config:
