@@ -1,0 +1,19 @@
+#!/bin/sh
+# Terraform local state can contain credentials; create private files by default.
+set -eu
+umask 077
+terraform_binary=${TF_BINARY:-/snap/bin/terraform}
+case "$terraform_binary" in
+    /*) ;;
+    *) printf '%s\n' 'TF_BINARY must be an absolute executable path' >&2; exit 2 ;;
+esac
+if [ ! -x "$terraform_binary" ]; then
+    printf '%s\n' 'The configured Terraform executable is unavailable' >&2
+    exit 2
+fi
+lab_directory=$(CDPATH= cd -- "$(dirname -- "$0")/../.." && pwd)
+if [ "${TF_CLI_CONFIG_FILE+x}" != x ] && [ -f "$lab_directory/runtime/terraform/providers/terraform.rc" ]; then
+    TF_CLI_CONFIG_FILE="$lab_directory/runtime/terraform/providers/terraform.rc"
+    export TF_CLI_CONFIG_FILE
+fi
+exec "$terraform_binary" "$@"

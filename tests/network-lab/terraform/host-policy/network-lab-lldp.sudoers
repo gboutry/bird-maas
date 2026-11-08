@@ -1,0 +1,4 @@
+# Permit only the four isolated network-lab carrier bridges.
+Cmnd_Alias NLAB_LLDP_SET = /snap/bin/microovn.ovs-vsctl --timeout=5 -- set Bridge nlab-tf-r1-pf0 other_config\:forward-bpdu=true -- set Bridge nlab-tf-r1-pf1 other_config\:forward-bpdu=true -- set Bridge nlab-tf-r2-pf0 other_config\:forward-bpdu=true -- set Bridge nlab-tf-r2-pf1 other_config\:forward-bpdu=true
+Cmnd_Alias NLAB_LLDP_GET = /snap/bin/microovn.ovs-vsctl --timeout=5 -- get Bridge nlab-tf-r1-pf0 other_config\:forward-bpdu -- get Bridge nlab-tf-r1-pf1 other_config\:forward-bpdu -- get Bridge nlab-tf-r2-pf0 other_config\:forward-bpdu -- get Bridge nlab-tf-r2-pf1 other_config\:forward-bpdu
+guillaume.boutry@canonical.com ALL=(root) NOPASSWD: NLAB_LLDP_SET, NLAB_LLDP_GET

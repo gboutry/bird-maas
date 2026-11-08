@@ -1,0 +1,22 @@
+locals { repository = get_repo_root() }
+include "root" { path = find_in_parent_folders("root.hcl") }
+terraform { source = "${local.repository}/tests/network-lab/terraform/modules/maas-networking" }
+dependency "maas" { config_path = "../20-maas" }
+dependency "networks" { config_path = "../00-networks" }
+dependency "inventory" { config_path = "../25-maas-config" }
+dependency "machines" { config_path = "../30-machines" }
+dependency "commission" { config_path = "../35-commission" }
+inputs = {
+  api_url = dependency.maas.outputs.api_url
+  api_key_path = dependency.maas.outputs.api_key_path
+  ca_certificate_path = dependency.maas.outputs.ca_certificate_path
+  project = dependency.networks.outputs.project
+  management_cidr = dependency.networks.outputs.management_cidr
+  management_subnet = dependency.inventory.outputs.management_subnet
+  management_vlan = dependency.inventory.outputs.management_vlan
+  fast_fabrics = dependency.inventory.outputs.fast_fabrics
+  role_vlans = dependency.inventory.outputs.role_vlans
+  machine_ids = dependency.commission.outputs.machine_ids
+  machines = dependency.machines.outputs.machines
+  roles_path = "${local.repository}/tests/network-lab/maas/network-model/logical-roles.json"
+}

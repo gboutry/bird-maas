@@ -1,0 +1,26 @@
+locals { repository = get_repo_root() }
+include "root" { path = find_in_parent_folders("root.hcl") }
+terraform { source = "${local.repository}/tests/network-lab/terraform/modules//lab-applications" }
+dependencies { paths = ["../65-frr-routing"] }
+dependency "controller" { config_path = "../45-juju-controller" }
+dependency "model" { config_path = "../50-juju-machines" }
+dependency "networking" { config_path = "../40-networking" }
+dependency "frr" { config_path = "../10-frr" }
+dependency "gateways" { config_path = "../85-gateways" }
+dependency "secrets" { config_path = "../60-secrets" }
+inputs = {
+  enabled              = true
+  workers              = dependency.networking.outputs.workers
+  worker_configuration = dependency.model.outputs.worker_configuration
+  machines             = dependency.model.outputs.machines
+  model_uuid           = dependency.model.outputs.model_uuid
+  client_directory     = dependency.controller.outputs.client_directory
+  tor_chassis          = dependency.frr.outputs.tor_chassis
+  maas_secret_uri      = dependency.secrets.outputs.maas_secret_uri
+  maas_ca_secret_uri   = dependency.secrets.outputs.maas_ca_secret_uri
+  gateway_prefixes     = [for gateway in dependency.gateways.outputs.gateways : "${gateway.address}/32"]
+  bgp_secret_uris      = dependency.secrets.outputs.bgp_secret_uris
+  roles_path           = "${local.repository}/tests/network-lab/maas/network-model/logical-roles.json"
+  output_directory     = "${local.repository}/tests/network-lab/runtime/terraform-applications"
+  charm_directory      = "${local.repository}/tests/network-lab/runtime/charms"
+}
