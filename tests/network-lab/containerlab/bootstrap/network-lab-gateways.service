@@ -1,0 +1,16 @@
+[Unit]
+Description=Network lab isolated OVN gateway namespaces
+Requires=network-lab-provider.service ovn-central.service
+After=network-lab-provider.service ovn-central.service
+PartOf=network-lab-fabric.service
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/python3 /opt/network-lab/gateway-src/gateway_dataplane.py --model /opt/network-lab/gateway-src/gateways.json --apply
+ExecStop=/usr/bin/python3 /opt/network-lab/gateway-src/gateway_dataplane.py --model /opt/network-lab/gateway-src/gateways.json --stop
+RemainAfterExit=yes
+TimeoutStartSec=180
+TimeoutStopSec=90
+
+[Install]
+WantedBy=multi-user.target

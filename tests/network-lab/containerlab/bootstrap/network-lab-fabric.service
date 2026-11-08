@@ -1,0 +1,20 @@
+[Unit]
+Description=Restore the owned network laboratory fabric and virtual links
+Requires=docker.service
+Wants=network-online.target
+After=docker.service network-online.target
+ConditionPathExists=/opt/network-lab/host-fabric/topology.clab.yml
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+WorkingDirectory=/opt/network-lab/host-fabric
+ExecStartPre=/usr/bin/test -d /sys/class/net/br-r1a
+ExecStartPre=/usr/bin/test -d /sys/class/net/br-r1b
+ExecStartPre=/usr/bin/test -d /sys/class/net/br-r2a
+ExecStartPre=/usr/bin/test -d /sys/class/net/br-r2b
+ExecStart=/usr/bin/containerlab deploy --topo /opt/network-lab/host-fabric/topology.clab.yml --reconfigure --max-workers 1
+TimeoutStartSec=180
+
+[Install]
+WantedBy=multi-user.target

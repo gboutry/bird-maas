@@ -1,0 +1,57 @@
+inventory:
+  rack-profiles: |
+    [
+      {
+        "id": "r1",
+        "peers": [
+          {
+            "id": "r1a",
+            "chassis_id": "02:00:00:fa:00:01",
+            "asn": 65101
+          },
+          {
+            "id": "r1b",
+            "chassis_id": "02:00:00:fa:00:02",
+            "asn": 65102
+          }
+        ]
+      },
+      {
+        "id": "r2",
+        "peers": [
+          {
+            "id": "r2a",
+            "chassis_id": "02:00:00:fa:00:03",
+            "asn": 65103
+          },
+          {
+            "id": "r2b",
+            "chassis_id": "02:00:00:fa:00:04",
+            "asn": 65104
+          }
+        ]
+      }
+    ]
+  host-identities: |
+    [
+      {
+        "machine_id": "pbqww7",
+        "local_asn": 4200000020,
+        "router_id": "10.205.10.20"
+      },
+      {
+        "machine_id": "s3ra6s",
+        "local_asn": 4200000021,
+        "router_id": "10.205.10.21"
+      },
+      {
+        "machine_id": "ahfbgh",
+        "local_asn": 4200000022,
+        "router_id": "10.205.10.22"
+      },
+      {
+        "machine_id": "khwadc",
+        "local_asn": 4200000023,
+        "router_id": "10.205.10.23"
+      }
+    ]

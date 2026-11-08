@@ -1,0 +1,516 @@
+bird-r1a:
+  enabled: false
+  advertisement-mode: node-addresses
+  policy-protocol: 4
+  protected-prefixes: 10.203.0.0/16
+  routing-domains: |-
+    [
+      {
+        "id": "general",
+        "import_prefixes": [
+          "10.205.10.20/32",
+          "10.205.10.21/32",
+          "10.205.10.22/32",
+          "10.205.10.23/32"
+        ],
+        "export_allowlist": [
+          "10.205.10.20/32"
+        ],
+        "contexts": [
+          {
+            "id": "transport",
+            "machine_id": "pbqww7",
+            "numa_node": null,
+            "attachment_ids": [
+              "probe-gp-r1a",
+              "probe-gp-r1b"
+            ],
+            "table": 4400,
+            "rule_priority": 14000,
+            "sources": [
+              "10.205.10.20/32"
+            ]
+          }
+        ],
+        "kernel_ecmp_limit": 2
+      },
+      {
+        "id": "ceph-access",
+        "kernel_ecmp_limit": 2,
+        "import_prefixes": [
+          "10.205.20.21/32",
+          "10.205.20.22/32",
+          "10.205.20.23/32",
+          "10.205.21.21/32",
+          "10.205.21.22/32",
+          "10.205.21.23/32"
+        ],
+        "export_allowlist": [
+          "10.205.20.20/32",
+          "10.205.21.20/32"
+        ],
+        "contexts": [
+          {
+            "id": "access0",
+            "machine_id": "pbqww7",
+            "numa_node": null,
+            "attachment_ids": [
+              "probe-access0-r1a",
+              "probe-access0-r1b"
+            ],
+            "table": 4100,
+            "rule_priority": 10000,
+            "sources": [
+              "10.205.20.20/32"
+            ]
+          },
+          {
+            "id": "access1",
+            "machine_id": "pbqww7",
+            "numa_node": null,
+            "attachment_ids": [
+              "probe-access1-r1a",
+              "probe-access1-r1b"
+            ],
+            "table": 4101,
+            "rule_priority": 10100,
+            "sources": [
+              "10.205.21.20/32"
+            ]
+          }
+        ]
+      },
+      {
+        "id": "ceph-replication",
+        "kernel_ecmp_limit": 2,
+        "import_prefixes": [
+          "10.205.30.21/32",
+          "10.205.30.22/32",
+          "10.205.30.23/32",
+          "10.205.31.21/32",
+          "10.205.31.22/32",
+          "10.205.31.23/32"
+        ],
+        "export_allowlist": [
+          "10.205.30.20/32",
+          "10.205.31.20/32"
+        ],
+        "contexts": [
+          {
+            "id": "replication0",
+            "machine_id": "pbqww7",
+            "numa_node": null,
+            "attachment_ids": [
+              "probe-replication0-r1a",
+              "probe-replication0-r1b"
+            ],
+            "table": 4200,
+            "rule_priority": 10200,
+            "sources": [
+              "10.205.30.20/32"
+            ]
+          },
+          {
+            "id": "replication1",
+            "machine_id": "pbqww7",
+            "numa_node": null,
+            "attachment_ids": [
+              "probe-replication1-r1a",
+              "probe-replication1-r1b"
+            ],
+            "table": 4201,
+            "rule_priority": 10300,
+            "sources": [
+              "10.205.31.20/32"
+            ]
+          }
+        ]
+      }
+    ]
+bird-r1b:
+  enabled: false
+  advertisement-mode: node-addresses
+  policy-protocol: 4
+  protected-prefixes: 10.203.0.0/16
+  routing-domains: |-
+    [
+      {
+        "id": "general",
+        "import_prefixes": [
+          "10.205.10.20/32",
+          "10.205.10.21/32",
+          "10.205.10.22/32",
+          "10.205.10.23/32"
+        ],
+        "export_allowlist": [
+          "10.205.10.21/32"
+        ],
+        "contexts": [
+          {
+            "id": "transport",
+            "machine_id": "s3ra6s",
+            "numa_node": null,
+            "attachment_ids": [
+              "probe-alt-gp-r1a",
+              "probe-alt-gp-r1b"
+            ],
+            "table": 4400,
+            "rule_priority": 14000,
+            "sources": [
+              "10.205.10.21/32"
+            ]
+          }
+        ],
+        "kernel_ecmp_limit": 2
+      },
+      {
+        "id": "ceph-access",
+        "kernel_ecmp_limit": 2,
+        "import_prefixes": [
+          "10.205.20.20/32",
+          "10.205.20.22/32",
+          "10.205.20.23/32",
+          "10.205.21.20/32",
+          "10.205.21.22/32",
+          "10.205.21.23/32"
+        ],
+        "export_allowlist": [
+          "10.205.20.21/32",
+          "10.205.21.21/32"
+        ],
+        "contexts": [
+          {
+            "id": "access0",
+            "machine_id": "s3ra6s",
+            "numa_node": null,
+            "attachment_ids": [
+              "probe-alt-access0-r1a",
+              "probe-alt-access0-r1b"
+            ],
+            "table": 4100,
+            "rule_priority": 10000,
+            "sources": [
+              "10.205.20.21/32"
+            ]
+          },
+          {
+            "id": "access1",
+            "machine_id": "s3ra6s",
+            "numa_node": null,
+            "attachment_ids": [
+              "probe-alt-access1-r1a",
+              "probe-alt-access1-r1b"
+            ],
+            "table": 4101,
+            "rule_priority": 10100,
+            "sources": [
+              "10.205.21.21/32"
+            ]
+          }
+        ]
+      },
+      {
+        "id": "ceph-replication",
+        "kernel_ecmp_limit": 2,
+        "import_prefixes": [
+          "10.205.30.20/32",
+          "10.205.30.22/32",
+          "10.205.30.23/32",
+          "10.205.31.20/32",
+          "10.205.31.22/32",
+          "10.205.31.23/32"
+        ],
+        "export_allowlist": [
+          "10.205.30.21/32",
+          "10.205.31.21/32"
+        ],
+        "contexts": [
+          {
+            "id": "replication0",
+            "machine_id": "s3ra6s",
+            "numa_node": null,
+            "attachment_ids": [
+              "probe-alt-replication0-r1a",
+              "probe-alt-replication0-r1b"
+            ],
+            "table": 4200,
+            "rule_priority": 10200,
+            "sources": [
+              "10.205.30.21/32"
+            ]
+          },
+          {
+            "id": "replication1",
+            "machine_id": "s3ra6s",
+            "numa_node": null,
+            "attachment_ids": [
+              "probe-alt-replication1-r1a",
+              "probe-alt-replication1-r1b"
+            ],
+            "table": 4201,
+            "rule_priority": 10300,
+            "sources": [
+              "10.205.31.21/32"
+            ]
+          }
+        ]
+      }
+    ]
+bird-r2a:
+  enabled: false
+  advertisement-mode: node-addresses
+  policy-protocol: 4
+  protected-prefixes: 10.203.0.0/16
+  routing-domains: |-
+    [
+      {
+        "id": "general",
+        "import_prefixes": [
+          "10.205.10.20/32",
+          "10.205.10.21/32",
+          "10.205.10.22/32",
+          "10.205.10.23/32"
+        ],
+        "export_allowlist": [
+          "10.205.10.22/32"
+        ],
+        "contexts": [
+          {
+            "id": "transport",
+            "machine_id": "ahfbgh",
+            "numa_node": null,
+            "attachment_ids": [
+              "probe-r2a-gp-r2a",
+              "probe-r2a-gp-r2b"
+            ],
+            "table": 4400,
+            "rule_priority": 14000,
+            "sources": [
+              "10.205.10.22/32"
+            ]
+          }
+        ],
+        "kernel_ecmp_limit": 2
+      },
+      {
+        "id": "ceph-access",
+        "kernel_ecmp_limit": 2,
+        "import_prefixes": [
+          "10.205.20.20/32",
+          "10.205.20.21/32",
+          "10.205.20.23/32",
+          "10.205.21.20/32",
+          "10.205.21.21/32",
+          "10.205.21.23/32"
+        ],
+        "export_allowlist": [
+          "10.205.20.22/32",
+          "10.205.21.22/32"
+        ],
+        "contexts": [
+          {
+            "id": "access0",
+            "machine_id": "ahfbgh",
+            "numa_node": null,
+            "attachment_ids": [
+              "probe-r2a-access0-r2a",
+              "probe-r2a-access0-r2b"
+            ],
+            "table": 4100,
+            "rule_priority": 10000,
+            "sources": [
+              "10.205.20.22/32"
+            ]
+          },
+          {
+            "id": "access1",
+            "machine_id": "ahfbgh",
+            "numa_node": null,
+            "attachment_ids": [
+              "probe-r2a-access1-r2a",
+              "probe-r2a-access1-r2b"
+            ],
+            "table": 4101,
+            "rule_priority": 10100,
+            "sources": [
+              "10.205.21.22/32"
+            ]
+          }
+        ]
+      },
+      {
+        "id": "ceph-replication",
+        "kernel_ecmp_limit": 2,
+        "import_prefixes": [
+          "10.205.30.20/32",
+          "10.205.30.21/32",
+          "10.205.30.23/32",
+          "10.205.31.20/32",
+          "10.205.31.21/32",
+          "10.205.31.23/32"
+        ],
+        "export_allowlist": [
+          "10.205.30.22/32",
+          "10.205.31.22/32"
+        ],
+        "contexts": [
+          {
+            "id": "replication0",
+            "machine_id": "ahfbgh",
+            "numa_node": null,
+            "attachment_ids": [
+              "probe-r2a-replication0-r2a",
+              "probe-r2a-replication0-r2b"
+            ],
+            "table": 4200,
+            "rule_priority": 10200,
+            "sources": [
+              "10.205.30.22/32"
+            ]
+          },
+          {
+            "id": "replication1",
+            "machine_id": "ahfbgh",
+            "numa_node": null,
+            "attachment_ids": [
+              "probe-r2a-replication1-r2a",
+              "probe-r2a-replication1-r2b"
+            ],
+            "table": 4201,
+            "rule_priority": 10300,
+            "sources": [
+              "10.205.31.22/32"
+            ]
+          }
+        ]
+      }
+    ]
+bird-r2b:
+  enabled: false
+  advertisement-mode: node-addresses
+  policy-protocol: 4
+  protected-prefixes: 10.203.0.0/16
+  routing-domains: |-
+    [
+      {
+        "id": "general",
+        "import_prefixes": [
+          "10.205.10.20/32",
+          "10.205.10.21/32",
+          "10.205.10.22/32",
+          "10.205.10.23/32"
+        ],
+        "export_allowlist": [
+          "10.205.10.23/32"
+        ],
+        "contexts": [
+          {
+            "id": "transport",
+            "machine_id": "khwadc",
+            "numa_node": null,
+            "attachment_ids": [
+              "probe-r2b-gp-r2a",
+              "probe-r2b-gp-r2b"
+            ],
+            "table": 4400,
+            "rule_priority": 14000,
+            "sources": [
+              "10.205.10.23/32"
+            ]
+          }
+        ],
+        "kernel_ecmp_limit": 2
+      },
+      {
+        "id": "ceph-access",
+        "kernel_ecmp_limit": 2,
+        "import_prefixes": [
+          "10.205.20.20/32",
+          "10.205.20.21/32",
+          "10.205.20.22/32",
+          "10.205.21.20/32",
+          "10.205.21.21/32",
+          "10.205.21.22/32"
+        ],
+        "export_allowlist": [
+          "10.205.20.23/32",
+          "10.205.21.23/32"
+        ],
+        "contexts": [
+          {
+            "id": "access0",
+            "machine_id": "khwadc",
+            "numa_node": null,
+            "attachment_ids": [
+              "probe-r2b-access0-r2a",
+              "probe-r2b-access0-r2b"
+            ],
+            "table": 4100,
+            "rule_priority": 10000,
+            "sources": [
+              "10.205.20.23/32"
+            ]
+          },
+          {
+            "id": "access1",
+            "machine_id": "khwadc",
+            "numa_node": null,
+            "attachment_ids": [
+              "probe-r2b-access1-r2a",
+              "probe-r2b-access1-r2b"
+            ],
+            "table": 4101,
+            "rule_priority": 10100,
+            "sources": [
+              "10.205.21.23/32"
+            ]
+          }
+        ]
+      },
+      {
+        "id": "ceph-replication",
+        "kernel_ecmp_limit": 2,
+        "import_prefixes": [
+          "10.205.30.20/32",
+          "10.205.30.21/32",
+          "10.205.30.22/32",
+          "10.205.31.20/32",
+          "10.205.31.21/32",
+          "10.205.31.22/32"
+        ],
+        "export_allowlist": [
+          "10.205.30.23/32",
+          "10.205.31.23/32"
+        ],
+        "contexts": [
+          {
+            "id": "replication0",
+            "machine_id": "khwadc",
+            "numa_node": null,
+            "attachment_ids": [
+              "probe-r2b-replication0-r2a",
+              "probe-r2b-replication0-r2b"
+            ],
+            "table": 4200,
+            "rule_priority": 10200,
+            "sources": [
+              "10.205.30.23/32"
+            ]
+          },
+          {
+            "id": "replication1",
+            "machine_id": "khwadc",
+            "numa_node": null,
+            "attachment_ids": [
+              "probe-r2b-replication1-r2a",
+              "probe-r2b-replication1-r2b"
+            ],
+            "table": 4201,
+            "rule_priority": 10300,
+            "sources": [
+              "10.205.31.23/32"
+            ]
+          }
+        ]
+      }
+    ]

@@ -1,0 +1,13 @@
+[Unit]
+Description=Network lab OVN tenant endpoint
+Requires=bird.service ovn-controller.service
+After=network-online.target bird.service ovn-controller.service
+PartOf=ovn-controller.service
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/python3 /usr/local/libexec/network-lab/tenant_endpoint.py
+RemainAfterExit=yes
+
+[Install]
+WantedBy=multi-user.target

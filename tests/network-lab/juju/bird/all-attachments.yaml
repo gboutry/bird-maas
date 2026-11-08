@@ -1,0 +1,700 @@
+nic-r1a:
+  backend: native-nic
+  attachments: |-
+    [
+      {
+        "identity": {
+          "scheme": "permanent-mac",
+          "value": "00:16:3e:e3:69:3b"
+        },
+        "function": {
+          "controller": 0,
+          "pf": 0,
+          "vf": null
+        },
+        "id": "probe-access0-r1a",
+        "domain": "ceph-access",
+        "vlan": 3400,
+        "chassis_id": "02:00:00:fa:00:01",
+        "peer_link_local": "fe80::1",
+        "uplink": "enp7s0"
+      },
+      {
+        "identity": {
+          "scheme": "permanent-mac",
+          "value": "00:16:3e:19:1a:bb"
+        },
+        "function": {
+          "controller": 0,
+          "pf": 0,
+          "vf": null
+        },
+        "id": "probe-access0-r1b",
+        "domain": "ceph-access",
+        "vlan": 3400,
+        "chassis_id": "02:00:00:fa:00:02",
+        "peer_link_local": "fe80::1",
+        "uplink": "enp8s0"
+      },
+      {
+        "identity": {
+          "scheme": "permanent-mac",
+          "value": "00:16:3e:e3:69:3b"
+        },
+        "function": {
+          "controller": 0,
+          "pf": 0,
+          "vf": null
+        },
+        "id": "probe-access1-r1a",
+        "domain": "ceph-access",
+        "vlan": 3401,
+        "chassis_id": "02:00:00:fa:00:01",
+        "peer_link_local": "fe80::1",
+        "uplink": "enp7s0"
+      },
+      {
+        "identity": {
+          "scheme": "permanent-mac",
+          "value": "00:16:3e:19:1a:bb"
+        },
+        "function": {
+          "controller": 0,
+          "pf": 0,
+          "vf": null
+        },
+        "id": "probe-access1-r1b",
+        "domain": "ceph-access",
+        "vlan": 3401,
+        "chassis_id": "02:00:00:fa:00:02",
+        "peer_link_local": "fe80::1",
+        "uplink": "enp8s0"
+      },
+      {
+        "identity": {
+          "scheme": "permanent-mac",
+          "value": "00:16:3e:e3:69:3b"
+        },
+        "function": {
+          "controller": 0,
+          "pf": 0,
+          "vf": null
+        },
+        "id": "probe-replication0-r1a",
+        "domain": "ceph-replication",
+        "vlan": 3402,
+        "chassis_id": "02:00:00:fa:00:01",
+        "peer_link_local": "fe80::1",
+        "uplink": "enp7s0"
+      },
+      {
+        "identity": {
+          "scheme": "permanent-mac",
+          "value": "00:16:3e:19:1a:bb"
+        },
+        "function": {
+          "controller": 0,
+          "pf": 0,
+          "vf": null
+        },
+        "id": "probe-replication0-r1b",
+        "domain": "ceph-replication",
+        "vlan": 3402,
+        "chassis_id": "02:00:00:fa:00:02",
+        "peer_link_local": "fe80::1",
+        "uplink": "enp8s0"
+      },
+      {
+        "identity": {
+          "scheme": "permanent-mac",
+          "value": "00:16:3e:e3:69:3b"
+        },
+        "function": {
+          "controller": 0,
+          "pf": 0,
+          "vf": null
+        },
+        "id": "probe-replication1-r1a",
+        "domain": "ceph-replication",
+        "vlan": 3403,
+        "chassis_id": "02:00:00:fa:00:01",
+        "peer_link_local": "fe80::1",
+        "uplink": "enp7s0"
+      },
+      {
+        "identity": {
+          "scheme": "permanent-mac",
+          "value": "00:16:3e:19:1a:bb"
+        },
+        "function": {
+          "controller": 0,
+          "pf": 0,
+          "vf": null
+        },
+        "id": "probe-replication1-r1b",
+        "domain": "ceph-replication",
+        "vlan": 3403,
+        "chassis_id": "02:00:00:fa:00:02",
+        "peer_link_local": "fe80::1",
+        "uplink": "enp8s0"
+      },
+      {
+        "identity": {
+          "scheme": "permanent-mac",
+          "value": "00:16:3e:e3:69:3b"
+        },
+        "function": {
+          "controller": 0,
+          "pf": 0,
+          "vf": null
+        },
+        "id": "probe-gp-r1a",
+        "domain": "general",
+        "vlan": 3404,
+        "chassis_id": "02:00:00:fa:00:01",
+        "peer_link_local": "fe80::1",
+        "uplink": "enp7s0"
+      },
+      {
+        "identity": {
+          "scheme": "permanent-mac",
+          "value": "00:16:3e:19:1a:bb"
+        },
+        "function": {
+          "controller": 0,
+          "pf": 0,
+          "vf": null
+        },
+        "id": "probe-gp-r1b",
+        "domain": "general",
+        "vlan": 3404,
+        "chassis_id": "02:00:00:fa:00:02",
+        "peer_link_local": "fe80::1",
+        "uplink": "enp8s0"
+      }
+    ]
+nic-r1b:
+  backend: native-nic
+  attachments: |-
+    [
+      {
+        "identity": {
+          "scheme": "permanent-mac",
+          "value": "00:16:3e:62:2b:53"
+        },
+        "function": {
+          "controller": 0,
+          "pf": 0,
+          "vf": null
+        },
+        "id": "probe-alt-access0-r1a",
+        "domain": "ceph-access",
+        "vlan": 3400,
+        "chassis_id": "02:00:00:fa:00:01",
+        "peer_link_local": "fe80::1",
+        "uplink": "enp7s0"
+      },
+      {
+        "identity": {
+          "scheme": "permanent-mac",
+          "value": "00:16:3e:4c:dd:f0"
+        },
+        "function": {
+          "controller": 0,
+          "pf": 0,
+          "vf": null
+        },
+        "id": "probe-alt-access0-r1b",
+        "domain": "ceph-access",
+        "vlan": 3400,
+        "chassis_id": "02:00:00:fa:00:02",
+        "peer_link_local": "fe80::1",
+        "uplink": "enp8s0"
+      },
+      {
+        "identity": {
+          "scheme": "permanent-mac",
+          "value": "00:16:3e:62:2b:53"
+        },
+        "function": {
+          "controller": 0,
+          "pf": 0,
+          "vf": null
+        },
+        "id": "probe-alt-access1-r1a",
+        "domain": "ceph-access",
+        "vlan": 3401,
+        "chassis_id": "02:00:00:fa:00:01",
+        "peer_link_local": "fe80::1",
+        "uplink": "enp7s0"
+      },
+      {
+        "identity": {
+          "scheme": "permanent-mac",
+          "value": "00:16:3e:4c:dd:f0"
+        },
+        "function": {
+          "controller": 0,
+          "pf": 0,
+          "vf": null
+        },
+        "id": "probe-alt-access1-r1b",
+        "domain": "ceph-access",
+        "vlan": 3401,
+        "chassis_id": "02:00:00:fa:00:02",
+        "peer_link_local": "fe80::1",
+        "uplink": "enp8s0"
+      },
+      {
+        "identity": {
+          "scheme": "permanent-mac",
+          "value": "00:16:3e:62:2b:53"
+        },
+        "function": {
+          "controller": 0,
+          "pf": 0,
+          "vf": null
+        },
+        "id": "probe-alt-replication0-r1a",
+        "domain": "ceph-replication",
+        "vlan": 3402,
+        "chassis_id": "02:00:00:fa:00:01",
+        "peer_link_local": "fe80::1",
+        "uplink": "enp7s0"
+      },
+      {
+        "identity": {
+          "scheme": "permanent-mac",
+          "value": "00:16:3e:4c:dd:f0"
+        },
+        "function": {
+          "controller": 0,
+          "pf": 0,
+          "vf": null
+        },
+        "id": "probe-alt-replication0-r1b",
+        "domain": "ceph-replication",
+        "vlan": 3402,
+        "chassis_id": "02:00:00:fa:00:02",
+        "peer_link_local": "fe80::1",
+        "uplink": "enp8s0"
+      },
+      {
+        "identity": {
+          "scheme": "permanent-mac",
+          "value": "00:16:3e:62:2b:53"
+        },
+        "function": {
+          "controller": 0,
+          "pf": 0,
+          "vf": null
+        },
+        "id": "probe-alt-replication1-r1a",
+        "domain": "ceph-replication",
+        "vlan": 3403,
+        "chassis_id": "02:00:00:fa:00:01",
+        "peer_link_local": "fe80::1",
+        "uplink": "enp7s0"
+      },
+      {
+        "identity": {
+          "scheme": "permanent-mac",
+          "value": "00:16:3e:4c:dd:f0"
+        },
+        "function": {
+          "controller": 0,
+          "pf": 0,
+          "vf": null
+        },
+        "id": "probe-alt-replication1-r1b",
+        "domain": "ceph-replication",
+        "vlan": 3403,
+        "chassis_id": "02:00:00:fa:00:02",
+        "peer_link_local": "fe80::1",
+        "uplink": "enp8s0"
+      },
+      {
+        "identity": {
+          "scheme": "permanent-mac",
+          "value": "00:16:3e:62:2b:53"
+        },
+        "function": {
+          "controller": 0,
+          "pf": 0,
+          "vf": null
+        },
+        "id": "probe-alt-gp-r1a",
+        "domain": "general",
+        "vlan": 3404,
+        "chassis_id": "02:00:00:fa:00:01",
+        "peer_link_local": "fe80::1",
+        "uplink": "enp7s0"
+      },
+      {
+        "identity": {
+          "scheme": "permanent-mac",
+          "value": "00:16:3e:4c:dd:f0"
+        },
+        "function": {
+          "controller": 0,
+          "pf": 0,
+          "vf": null
+        },
+        "id": "probe-alt-gp-r1b",
+        "domain": "general",
+        "vlan": 3404,
+        "chassis_id": "02:00:00:fa:00:02",
+        "peer_link_local": "fe80::1",
+        "uplink": "enp8s0"
+      }
+    ]
+nic-r2a:
+  backend: native-nic
+  attachments: |-
+    [
+      {
+        "identity": {
+          "scheme": "permanent-mac",
+          "value": "00:16:3e:93:56:6d"
+        },
+        "function": {
+          "controller": 0,
+          "pf": 0,
+          "vf": null
+        },
+        "id": "probe-r2a-access0-r2a",
+        "domain": "ceph-access",
+        "vlan": 3400,
+        "chassis_id": "02:00:00:fa:00:03",
+        "peer_link_local": "fe80::1",
+        "uplink": "enp7s0"
+      },
+      {
+        "identity": {
+          "scheme": "permanent-mac",
+          "value": "00:16:3e:d5:cb:56"
+        },
+        "function": {
+          "controller": 0,
+          "pf": 0,
+          "vf": null
+        },
+        "id": "probe-r2a-access0-r2b",
+        "domain": "ceph-access",
+        "vlan": 3400,
+        "chassis_id": "02:00:00:fa:00:04",
+        "peer_link_local": "fe80::1",
+        "uplink": "enp8s0"
+      },
+      {
+        "identity": {
+          "scheme": "permanent-mac",
+          "value": "00:16:3e:93:56:6d"
+        },
+        "function": {
+          "controller": 0,
+          "pf": 0,
+          "vf": null
+        },
+        "id": "probe-r2a-access1-r2a",
+        "domain": "ceph-access",
+        "vlan": 3401,
+        "chassis_id": "02:00:00:fa:00:03",
+        "peer_link_local": "fe80::1",
+        "uplink": "enp7s0"
+      },
+      {
+        "identity": {
+          "scheme": "permanent-mac",
+          "value": "00:16:3e:d5:cb:56"
+        },
+        "function": {
+          "controller": 0,
+          "pf": 0,
+          "vf": null
+        },
+        "id": "probe-r2a-access1-r2b",
+        "domain": "ceph-access",
+        "vlan": 3401,
+        "chassis_id": "02:00:00:fa:00:04",
+        "peer_link_local": "fe80::1",
+        "uplink": "enp8s0"
+      },
+      {
+        "identity": {
+          "scheme": "permanent-mac",
+          "value": "00:16:3e:93:56:6d"
+        },
+        "function": {
+          "controller": 0,
+          "pf": 0,
+          "vf": null
+        },
+        "id": "probe-r2a-replication0-r2a",
+        "domain": "ceph-replication",
+        "vlan": 3402,
+        "chassis_id": "02:00:00:fa:00:03",
+        "peer_link_local": "fe80::1",
+        "uplink": "enp7s0"
+      },
+      {
+        "identity": {
+          "scheme": "permanent-mac",
+          "value": "00:16:3e:d5:cb:56"
+        },
+        "function": {
+          "controller": 0,
+          "pf": 0,
+          "vf": null
+        },
+        "id": "probe-r2a-replication0-r2b",
+        "domain": "ceph-replication",
+        "vlan": 3402,
+        "chassis_id": "02:00:00:fa:00:04",
+        "peer_link_local": "fe80::1",
+        "uplink": "enp8s0"
+      },
+      {
+        "identity": {
+          "scheme": "permanent-mac",
+          "value": "00:16:3e:93:56:6d"
+        },
+        "function": {
+          "controller": 0,
+          "pf": 0,
+          "vf": null
+        },
+        "id": "probe-r2a-replication1-r2a",
+        "domain": "ceph-replication",
+        "vlan": 3403,
+        "chassis_id": "02:00:00:fa:00:03",
+        "peer_link_local": "fe80::1",
+        "uplink": "enp7s0"
+      },
+      {
+        "identity": {
+          "scheme": "permanent-mac",
+          "value": "00:16:3e:d5:cb:56"
+        },
+        "function": {
+          "controller": 0,
+          "pf": 0,
+          "vf": null
+        },
+        "id": "probe-r2a-replication1-r2b",
+        "domain": "ceph-replication",
+        "vlan": 3403,
+        "chassis_id": "02:00:00:fa:00:04",
+        "peer_link_local": "fe80::1",
+        "uplink": "enp8s0"
+      },
+      {
+        "identity": {
+          "scheme": "permanent-mac",
+          "value": "00:16:3e:93:56:6d"
+        },
+        "function": {
+          "controller": 0,
+          "pf": 0,
+          "vf": null
+        },
+        "id": "probe-r2a-gp-r2a",
+        "domain": "general",
+        "vlan": 3404,
+        "chassis_id": "02:00:00:fa:00:03",
+        "peer_link_local": "fe80::1",
+        "uplink": "enp7s0"
+      },
+      {
+        "identity": {
+          "scheme": "permanent-mac",
+          "value": "00:16:3e:d5:cb:56"
+        },
+        "function": {
+          "controller": 0,
+          "pf": 0,
+          "vf": null
+        },
+        "id": "probe-r2a-gp-r2b",
+        "domain": "general",
+        "vlan": 3404,
+        "chassis_id": "02:00:00:fa:00:04",
+        "peer_link_local": "fe80::1",
+        "uplink": "enp8s0"
+      }
+    ]
+nic-r2b:
+  backend: native-nic
+  attachments: |-
+    [
+      {
+        "identity": {
+          "scheme": "permanent-mac",
+          "value": "00:16:3e:c1:eb:23"
+        },
+        "function": {
+          "controller": 0,
+          "pf": 0,
+          "vf": null
+        },
+        "id": "probe-r2b-access0-r2a",
+        "domain": "ceph-access",
+        "vlan": 3400,
+        "chassis_id": "02:00:00:fa:00:03",
+        "peer_link_local": "fe80::1",
+        "uplink": "enp7s0"
+      },
+      {
+        "identity": {
+          "scheme": "permanent-mac",
+          "value": "00:16:3e:fc:20:9b"
+        },
+        "function": {
+          "controller": 0,
+          "pf": 0,
+          "vf": null
+        },
+        "id": "probe-r2b-access0-r2b",
+        "domain": "ceph-access",
+        "vlan": 3400,
+        "chassis_id": "02:00:00:fa:00:04",
+        "peer_link_local": "fe80::1",
+        "uplink": "enp8s0"
+      },
+      {
+        "identity": {
+          "scheme": "permanent-mac",
+          "value": "00:16:3e:c1:eb:23"
+        },
+        "function": {
+          "controller": 0,
+          "pf": 0,
+          "vf": null
+        },
+        "id": "probe-r2b-access1-r2a",
+        "domain": "ceph-access",
+        "vlan": 3401,
+        "chassis_id": "02:00:00:fa:00:03",
+        "peer_link_local": "fe80::1",
+        "uplink": "enp7s0"
+      },
+      {
+        "identity": {
+          "scheme": "permanent-mac",
+          "value": "00:16:3e:fc:20:9b"
+        },
+        "function": {
+          "controller": 0,
+          "pf": 0,
+          "vf": null
+        },
+        "id": "probe-r2b-access1-r2b",
+        "domain": "ceph-access",
+        "vlan": 3401,
+        "chassis_id": "02:00:00:fa:00:04",
+        "peer_link_local": "fe80::1",
+        "uplink": "enp8s0"
+      },
+      {
+        "identity": {
+          "scheme": "permanent-mac",
+          "value": "00:16:3e:c1:eb:23"
+        },
+        "function": {
+          "controller": 0,
+          "pf": 0,
+          "vf": null
+        },
+        "id": "probe-r2b-replication0-r2a",
+        "domain": "ceph-replication",
+        "vlan": 3402,
+        "chassis_id": "02:00:00:fa:00:03",
+        "peer_link_local": "fe80::1",
+        "uplink": "enp7s0"
+      },
+      {
+        "identity": {
+          "scheme": "permanent-mac",
+          "value": "00:16:3e:fc:20:9b"
+        },
+        "function": {
+          "controller": 0,
+          "pf": 0,
+          "vf": null
+        },
+        "id": "probe-r2b-replication0-r2b",
+        "domain": "ceph-replication",
+        "vlan": 3402,
+        "chassis_id": "02:00:00:fa:00:04",
+        "peer_link_local": "fe80::1",
+        "uplink": "enp8s0"
+      },
+      {
+        "identity": {
+          "scheme": "permanent-mac",
+          "value": "00:16:3e:c1:eb:23"
+        },
+        "function": {
+          "controller": 0,
+          "pf": 0,
+          "vf": null
+        },
+        "id": "probe-r2b-replication1-r2a",
+        "domain": "ceph-replication",
+        "vlan": 3403,
+        "chassis_id": "02:00:00:fa:00:03",
+        "peer_link_local": "fe80::1",
+        "uplink": "enp7s0"
+      },
+      {
+        "identity": {
+          "scheme": "permanent-mac",
+          "value": "00:16:3e:fc:20:9b"
+        },
+        "function": {
+          "controller": 0,
+          "pf": 0,
+          "vf": null
+        },
+        "id": "probe-r2b-replication1-r2b",
+        "domain": "ceph-replication",
+        "vlan": 3403,
+        "chassis_id": "02:00:00:fa:00:04",
+        "peer_link_local": "fe80::1",
+        "uplink": "enp8s0"
+      },
+      {
+        "identity": {
+          "scheme": "permanent-mac",
+          "value": "00:16:3e:c1:eb:23"
+        },
+        "function": {
+          "controller": 0,
+          "pf": 0,
+          "vf": null
+        },
+        "id": "probe-r2b-gp-r2a",
+        "domain": "general",
+        "vlan": 3404,
+        "chassis_id": "02:00:00:fa:00:03",
+        "peer_link_local": "fe80::1",
+        "uplink": "enp7s0"
+      },
+      {
+        "identity": {
+          "scheme": "permanent-mac",
+          "value": "00:16:3e:fc:20:9b"
+        },
+        "function": {
+          "controller": 0,
+          "pf": 0,
+          "vf": null
+        },
+        "id": "probe-r2b-gp-r2b",
+        "domain": "general",
+        "vlan": 3404,
+        "chassis_id": "02:00:00:fa:00:04",
+        "peer_link_local": "fe80::1",
+        "uplink": "enp8s0"
+      }
+    ]

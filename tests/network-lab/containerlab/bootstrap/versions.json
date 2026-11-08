@@ -1,0 +1,11 @@
+{
+  "containerlab": {
+    "version": "0.82.0",
+    "architecture": "amd64",
+    "url": "https://github.com/srl-labs/containerlab/releases/download/v0.82.0/containerlab_0.82.0_linux_amd64.deb",
+    "sha256": "770e18f19ef75732eb9f4e362541f509abb2b6eeadde2d5c98140190b19b519a"
+  },
+  "frr_distro_candidate": "8.4.4-1.1ubuntu6.8",
+  "docker_distro_candidate": "29.1.3-0ubuntu3~24.04.2",
+  "boundary": "Containerlab asset pinned against release API and checksum manifest; distro candidates observed on the current Noble repository, actual installed versions must be recorded."
+}

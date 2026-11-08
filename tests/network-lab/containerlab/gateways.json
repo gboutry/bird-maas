@@ -1,0 +1,39 @@
+{
+  "implementation": "isolated-network-namespaces-with-independent-ovs-instances",
+  "hardware_emulation": false,
+  "control_network": "172.31.205.0/24",
+  "control_router": "172.31.205.1/24",
+  "gateways": {
+    "nlab-gw-r1": {
+      "rack": 1,
+      "tor": "r1a",
+      "vtep": "10.205.251.1/32",
+      "transport": "10.205.210.1/31",
+      "tor_transport": "10.205.210.0/31",
+      "control": "172.31.205.11/24",
+      "provider_mac": "02:00:00:ee:01:01",
+      "priority": 100
+    },
+    "nlab-gw-r2": {
+      "rack": 2,
+      "tor": "r2a",
+      "vtep": "10.205.251.2/32",
+      "transport": "10.205.210.3/31",
+      "tor_transport": "10.205.210.2/31",
+      "control": "172.31.205.12/24",
+      "provider_mac": "02:00:00:ee:02:01",
+      "priority": 90
+    }
+  },
+  "logical_router": {
+    "name": "network-lab-provider-router",
+    "provider_switch": "network-lab-provider",
+    "physnet": "physnet-provider",
+    "provider_address": "192.0.2.1/24",
+    "provider_mac": "02:00:00:ef:00:01",
+    "tenant_address": "172.30.10.1/24",
+    "tenant_mac": "02:00:00:ef:00:10",
+    "floating_start": "192.0.2.100"
+  },
+  "boundary": "Two logical gateway roles, each attached to one ToR. Separate provider attachments do not imply EVPN multihoming or automatic provider-link failure detection."
+}

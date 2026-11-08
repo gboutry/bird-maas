@@ -1,0 +1,9 @@
+#cloud-config
+package_update: true
+packages:
+  - jq
+runcmd:
+  - [snap, install, maas, --channel=3.8/stable]
+  - [snap, install, maas-test-db]
+  - [maas, init, 'region+rack', '--database-uri=maas-test-db:///', '--maas-url=http://10.203.240.10:5240/MAAS']
+# Administrator creation and credentials stay outside cloud-init/Terraform state.

@@ -1,0 +1,15 @@
+[Unit]
+Description=Network lab provider VXLAN and isolated L2 probes
+Requires=network-lab-fabric.service
+After=network-lab-fabric.service
+PartOf=network-lab-fabric.service
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/python3 /opt/network-lab/provider-src/provider_dataplane.py --model /opt/network-lab/provider-src/provider.json --apply
+ExecStop=/usr/bin/python3 /opt/network-lab/provider-src/provider_dataplane.py --model /opt/network-lab/provider-src/provider.json --detach
+RemainAfterExit=yes
+TimeoutStartSec=180
+
+[Install]
+WantedBy=multi-user.target

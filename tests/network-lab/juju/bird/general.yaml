@@ -1,0 +1,148 @@
+bird-r1a:
+  enabled: false
+  advertisement-mode: node-addresses
+  policy-protocol: 4
+  protected-prefixes: 10.203.0.0/16
+  routing-domains: |
+    [
+      {
+        "id": "general",
+        "import_prefixes": [
+          "10.205.10.20/32",
+          "10.205.10.21/32",
+          "10.205.10.22/32",
+          "10.205.10.23/32"
+        ],
+        "export_allowlist": [
+          "10.205.10.20/32"
+        ],
+        "contexts": [
+          {
+            "id": "transport",
+            "machine_id": "pbqww7",
+            "numa_node": null,
+            "attachment_ids": [
+              "probe-gp-r1a",
+              "probe-gp-r1b"
+            ],
+            "table": 4400,
+            "rule_priority": 14000,
+            "sources": [
+              "10.205.10.20/32"
+            ]
+          }
+        ],
+        "kernel_ecmp_limit": 2
+      }
+    ]
+bird-r1b:
+  enabled: false
+  advertisement-mode: node-addresses
+  policy-protocol: 4
+  protected-prefixes: 10.203.0.0/16
+  routing-domains: |
+    [
+      {
+        "id": "general",
+        "import_prefixes": [
+          "10.205.10.20/32",
+          "10.205.10.21/32",
+          "10.205.10.22/32",
+          "10.205.10.23/32"
+        ],
+        "export_allowlist": [
+          "10.205.10.21/32"
+        ],
+        "contexts": [
+          {
+            "id": "transport",
+            "machine_id": "s3ra6s",
+            "numa_node": null,
+            "attachment_ids": [
+              "probe-alt-gp-r1a",
+              "probe-alt-gp-r1b"
+            ],
+            "table": 4400,
+            "rule_priority": 14000,
+            "sources": [
+              "10.205.10.21/32"
+            ]
+          }
+        ],
+        "kernel_ecmp_limit": 2
+      }
+    ]
+bird-r2a:
+  enabled: false
+  advertisement-mode: node-addresses
+  policy-protocol: 4
+  protected-prefixes: 10.203.0.0/16
+  routing-domains: |
+    [
+      {
+        "id": "general",
+        "import_prefixes": [
+          "10.205.10.20/32",
+          "10.205.10.21/32",
+          "10.205.10.22/32",
+          "10.205.10.23/32"
+        ],
+        "export_allowlist": [
+          "10.205.10.22/32"
+        ],
+        "contexts": [
+          {
+            "id": "transport",
+            "machine_id": "ahfbgh",
+            "numa_node": null,
+            "attachment_ids": [
+              "probe-r2a-gp-r2a",
+              "probe-r2a-gp-r2b"
+            ],
+            "table": 4400,
+            "rule_priority": 14000,
+            "sources": [
+              "10.205.10.22/32"
+            ]
+          }
+        ],
+        "kernel_ecmp_limit": 2
+      }
+    ]
+bird-r2b:
+  enabled: false
+  advertisement-mode: node-addresses
+  policy-protocol: 4
+  protected-prefixes: 10.203.0.0/16
+  routing-domains: |
+    [
+      {
+        "id": "general",
+        "import_prefixes": [
+          "10.205.10.20/32",
+          "10.205.10.21/32",
+          "10.205.10.22/32",
+          "10.205.10.23/32"
+        ],
+        "export_allowlist": [
+          "10.205.10.23/32"
+        ],
+        "contexts": [
+          {
+            "id": "transport",
+            "machine_id": "khwadc",
+            "numa_node": null,
+            "attachment_ids": [
+              "probe-r2b-gp-r2a",
+              "probe-r2b-gp-r2b"
+            ],
+            "table": 4400,
+            "rule_priority": 14000,
+            "sources": [
+              "10.205.10.23/32"
+            ]
+          }
+        ],
+        "kernel_ecmp_limit": 2
+      }
+    ]

@@ -1,0 +1,139 @@
+name: maas-bird-fabric
+mgmt:
+  network: network-lab-control
+  ipv4-subnet: 10.203.250.0/24
+topology:
+  nodes:
+    spine0:
+      kind: linux
+      image: network-lab-frr:10.7.1
+      binds:
+      - frr/daemons:/etc/frr/daemons:ro
+      - frr/spine0.conf:/etc/frr/frr.conf:ro
+      sysctls:
+        net.ipv4.ip_forward: '1'
+        net.ipv4.conf.all.rp_filter: '0'
+        net.ipv6.conf.all.forwarding: '1'
+    spine1:
+      kind: linux
+      image: network-lab-frr:10.7.1
+      binds:
+      - frr/daemons:/etc/frr/daemons:ro
+      - frr/spine1.conf:/etc/frr/frr.conf:ro
+      sysctls:
+        net.ipv4.ip_forward: '1'
+        net.ipv4.conf.all.rp_filter: '0'
+        net.ipv6.conf.all.forwarding: '1'
+    r1a:
+      kind: linux
+      image: network-lab-frr:10.7.1
+      env:
+        LAB_HOST_MAC: "02:00:00:fa:00:01"
+      binds:
+      - frr/daemons:/etc/frr/daemons:ro
+      - frr/r1a.conf:/etc/frr/frr.conf:ro
+      sysctls:
+        net.ipv4.ip_forward: '1'
+        net.ipv4.conf.all.rp_filter: '0'
+        net.ipv6.conf.all.forwarding: '1'
+    r1b:
+      kind: linux
+      image: network-lab-frr:10.7.1
+      env:
+        LAB_HOST_MAC: "02:00:00:fa:00:02"
+      binds:
+      - frr/daemons:/etc/frr/daemons:ro
+      - frr/r1b.conf:/etc/frr/frr.conf:ro
+      sysctls:
+        net.ipv4.ip_forward: '1'
+        net.ipv4.conf.all.rp_filter: '0'
+        net.ipv6.conf.all.forwarding: '1'
+    r2a:
+      kind: linux
+      image: network-lab-frr:10.7.1
+      env:
+        LAB_HOST_MAC: "02:00:00:fa:00:03"
+      binds:
+      - frr/daemons:/etc/frr/daemons:ro
+      - frr/r2a.conf:/etc/frr/frr.conf:ro
+      sysctls:
+        net.ipv4.ip_forward: '1'
+        net.ipv4.conf.all.rp_filter: '0'
+        net.ipv6.conf.all.forwarding: '1'
+    r2b:
+      kind: linux
+      image: network-lab-frr:10.7.1
+      env:
+        LAB_HOST_MAC: "02:00:00:fa:00:04"
+      binds:
+      - frr/daemons:/etc/frr/daemons:ro
+      - frr/r2b.conf:/etc/frr/frr.conf:ro
+      sysctls:
+        net.ipv4.ip_forward: '1'
+        net.ipv4.conf.all.rp_filter: '0'
+        net.ipv6.conf.all.forwarding: '1'
+    br-r1a:
+      kind: bridge
+    br-r1b:
+      kind: bridge
+    br-r2a:
+      kind: bridge
+    br-r2b:
+      kind: bridge
+  links:
+  - endpoints:
+    - r1a:eth1
+    - spine0:eth1
+  - endpoints:
+    - r1a:eth2
+    - spine1:eth1
+  - endpoints:
+    - r1b:eth1
+    - spine0:eth2
+  - endpoints:
+    - r1b:eth2
+    - spine1:eth2
+  - endpoints:
+    - r2a:eth1
+    - spine0:eth3
+  - endpoints:
+    - r2a:eth2
+    - spine1:eth3
+  - endpoints:
+    - r2b:eth1
+    - spine0:eth4
+  - endpoints:
+    - r2b:eth2
+    - spine1:eth4
+  - type: veth
+    mtu: 1500
+    endpoints:
+    - node: r1a
+      interface: eth3
+      mac: "02:00:00:fa:00:01"
+    - node: br-r1a
+      interface: tor-r1a
+  - type: veth
+    mtu: 1500
+    endpoints:
+    - node: r1b
+      interface: eth3
+      mac: "02:00:00:fa:00:02"
+    - node: br-r1b
+      interface: tor-r1b
+  - type: veth
+    mtu: 1500
+    endpoints:
+    - node: r2a
+      interface: eth3
+      mac: "02:00:00:fa:00:03"
+    - node: br-r2a
+      interface: tor-r2a
+  - type: veth
+    mtu: 1500
+    endpoints:
+    - node: r2b
+      interface: eth3
+      mac: "02:00:00:fa:00:04"
+    - node: br-r2b
+      interface: tor-r2b

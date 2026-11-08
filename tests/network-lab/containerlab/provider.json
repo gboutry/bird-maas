@@ -1,0 +1,19 @@
+{
+  "vni": 3405,
+  "route_target": "65000:3405",
+  "mtu": 1500,
+  "vxlan_port": 4789,
+  "endpoints": {
+    "nlab-provider-r1": {
+      "tor": "r1b",
+      "address": "192.0.2.10/24",
+      "mac": "02:00:00:ee:01:10"
+    },
+    "nlab-provider-r2": {
+      "tor": "r2b",
+      "address": "192.0.2.20/24",
+      "mac": "02:00:00:ee:02:20"
+    }
+  },
+  "boundary": "Provider L2 transport endpoints; these endpoints are not OVN gateway chassis."
+}

@@ -1,0 +1,29 @@
+# Apply only inside the ownership-checked fabric VM, never on the laptop LXD.
+# Charmcraft may create its own project; the enclosing VM still caps all build
+# containers together at 2 CPUs / 8 GiB.
+config: {}
+networks:
+  - name: build0
+    type: bridge
+    config:
+      ipv4.address: 10.203.251.1/24
+      ipv4.nat: "true"
+      ipv6.address: none
+storage_pools:
+  - name: default
+    driver: dir
+profiles:
+  - name: default
+    config:
+      limits.cpu: "2"
+      limits.memory: 4GiB
+      boot.autostart: "false"
+      user.maas-bird-owner: network-lab-build
+    devices:
+      root:
+        type: disk
+        path: /
+        pool: default
+      eth0:
+        type: nic
+        network: build0

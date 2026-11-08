@@ -1,0 +1,55 @@
+{
+  "description": "Five logical VLAN roles per native NIC. Physical VF and NUMA coordinates remain independently observed; role slots do not assign them.",
+  "roles": [
+    {
+      "id": "access0",
+      "slot": 0,
+      "domain": "ceph-access",
+      "context": "access0",
+      "vlan": 3400,
+      "table": 4100,
+      "rule_priority": 10000,
+      "address_block": "10.205.20.0/24"
+    },
+    {
+      "id": "access1",
+      "slot": 1,
+      "domain": "ceph-access",
+      "context": "access1",
+      "vlan": 3401,
+      "table": 4101,
+      "rule_priority": 10100,
+      "address_block": "10.205.21.0/24"
+    },
+    {
+      "id": "replication0",
+      "slot": 2,
+      "domain": "ceph-replication",
+      "context": "replication0",
+      "vlan": 3402,
+      "table": 4200,
+      "rule_priority": 10200,
+      "address_block": "10.205.30.0/24"
+    },
+    {
+      "id": "replication1",
+      "slot": 3,
+      "domain": "ceph-replication",
+      "context": "replication1",
+      "vlan": 3403,
+      "table": 4201,
+      "rule_priority": 10300,
+      "address_block": "10.205.31.0/24"
+    },
+    {
+      "id": "general",
+      "slot": 4,
+      "domain": "general",
+      "context": "transport",
+      "vlan": 3404,
+      "table": 4400,
+      "rule_priority": 14000,
+      "address_block": "10.205.10.0/24"
+    }
+  ]
+}

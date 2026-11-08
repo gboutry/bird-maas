@@ -1,0 +1,13 @@
+[Unit]
+Description=Web egress for the isolated network-lab charm builder
+Requires=docker.service
+After=docker.service snap.lxd.daemon.service
+PartOf=docker.service
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/sbin/network-lab-builder-firewall
+RemainAfterExit=yes
+
+[Install]
+WantedBy=multi-user.target
