@@ -1,0 +1,262 @@
+diff --git a/docs/resources/subnet.md b/docs/resources/subnet.md
+index 16182af..16df208 100644
+--- a/docs/resources/subnet.md
++++ b/docs/resources/subnet.md
+@@ -57,6 +57,8 @@ resource "maas_subnet" "tf_subnet_2" {
+ 
+ ### Optional
+ 
++- `retain_on_delete` (Boolean) Retain the subnet and its in-line IP ranges in MAAS when this resource is destroyed. Standalone IP range resources have their own lifecycle. Defaults to false.
++
+ - `allow_dns` (Boolean) Boolean value that indicates if the MAAS DNS resolution is enabled for this subnet. Defaults to `true`.
+ - `allow_proxy` (Boolean) Boolean value that indicates if `maas-proxy` allows requests from this subnet. Defaults to `true`.
+ - `dns_servers` (List of String) List of IP addresses set as DNS servers for the new subnet. If this argument is omitted, it is computed from MAAS and left unmanaged. Set it explicitly to `[]` to remove all DNS servers from the subnet.
+diff --git a/maas/resource_maas_fabric.go b/maas/resource_maas_fabric.go
+index 89b13a3..2bf61e8 100644
+--- a/maas/resource_maas_fabric.go
++++ b/maas/resource_maas_fabric.go
+@@ -99,7 +99,7 @@ func resourceFabricDelete(ctx context.Context, d *schema.ResourceData, meta any)
+ 	}
+ 
+ 	if err := client.Fabric.Delete(id); err != nil {
+-		return diag.FromErr(err)
++		return unsetIfNotFoundError(d, err)
+ 	}
+ 
+ 	return nil
+diff --git a/maas/resource_maas_network_lifecycle_test.go b/maas/resource_maas_network_lifecycle_test.go
+new file mode 100644
+index 0000000..fdc31dd
+--- /dev/null
++++ b/maas/resource_maas_network_lifecycle_test.go
+@@ -0,0 +1,135 @@
++package maas
++
++import (
++	"context"
++	"fmt"
++	"testing"
++
++	"github.com/canonical/gomaasclient/api"
++	"github.com/canonical/gomaasclient/client"
++	"github.com/canonical/gomaasclient/entity"
++	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/schema"
++	"github.com/stretchr/testify/assert"
++	"github.com/stretchr/testify/require"
++)
++
++type lifecycleFabrics struct {
++	api.Fabrics
++	items []entity.Fabric
++	err   error
++}
++
++func (f lifecycleFabrics) Get() ([]entity.Fabric, error) { return f.items, f.err }
++
++type lifecycleVLANs struct {
++	api.VLANs
++	items []entity.VLAN
++	err   error
++}
++
++func (v lifecycleVLANs) Get(int) ([]entity.VLAN, error) { return v.items, v.err }
++
++type lifecycleVLAN struct {
++	api.VLAN
++	err   error
++	calls *int
++}
++
++func (v lifecycleVLAN) Delete(int, int) error { *v.calls++; return v.err }
++
++type lifecycleFabric struct {
++	api.Fabric
++	err error
++}
++
++func (f lifecycleFabric) Delete(int) error { return f.err }
++
++type lifecycleSubnet struct {
++	api.Subnet
++	err   error
++	calls *int
++}
++
++func (s lifecycleSubnet) Delete(int) error { *s.calls++; return s.err }
++
++func TestNetworkLifecycleVLANAbsence(t *testing.T) {
++	for _, operation := range []string{"read", "delete"} {
++		for _, scenario := range []string{"missing-fabric", "missing-vlan", "list-404", "list-forbidden", "delete-404", "delete-forbidden", "present"} {
++			t.Run(operation+"/"+scenario, func(t *testing.T) {
++				calls := 0
++				c := &client.Client{Fabrics: lifecycleFabrics{items: []entity.Fabric{{ID: 1}}}, VLANs: lifecycleVLANs{items: []entity.VLAN{{ID: 5038, VID: 3400}}}, VLAN: lifecycleVLAN{calls: &calls}}
++				switch scenario {
++				case "missing-fabric":
++					c.Fabrics = lifecycleFabrics{}
++				case "missing-vlan":
++					c.VLANs = lifecycleVLANs{}
++				case "list-404":
++					c.VLANs = lifecycleVLANs{err: fmt.Errorf("404 Not Found")}
++				case "list-forbidden":
++					c.Fabrics = lifecycleFabrics{err: fmt.Errorf("403 Forbidden")}
++				case "delete-404":
++					c.VLAN = lifecycleVLAN{calls: &calls, err: fmt.Errorf("404 Not Found")}
++				case "delete-forbidden":
++					c.VLAN = lifecycleVLAN{calls: &calls, err: fmt.Errorf("403 Forbidden")}
++				}
++				d := schema.TestResourceDataRaw(t, resourceMAASVLAN().Schema, map[string]any{"fabric": "1", "vid": 3400})
++				d.SetId("5038")
++				fn := resourceVLANRead
++				if operation == "delete" {
++					fn = resourceVLANDelete
++				}
++				diags := fn(context.Background(), d, &ClientConfig{Client: c})
++				failure := scenario == "list-forbidden" || (operation == "delete" && scenario == "delete-forbidden")
++				assert.Equal(t, failure, diags.HasError())
++				absent := scenario == "missing-fabric" || scenario == "missing-vlan" || scenario == "list-404" || (operation == "delete" && scenario == "delete-404")
++				if absent {
++					assert.Empty(t, d.Id())
++				} else {
++					assert.Equal(t, "5038", d.Id())
++				}
++				if operation == "delete" && (scenario == "present" || scenario == "delete-404" || scenario == "delete-forbidden") {
++					assert.Equal(t, 1, calls)
++				} else {
++					assert.Zero(t, calls)
++				}
++			})
++		}
++	}
++}
++
++func TestNetworkLifecycleFabricDelete(t *testing.T) {
++	for _, status := range []string{"404 Not Found", "403 Forbidden", "500 Internal Server Error", ""} {
++		t.Run(status, func(t *testing.T) {
++			var err error
++			if status != "" {
++				err = fmt.Errorf("%s", status)
++			}
++			d := schema.TestResourceDataRaw(t, resourceMAASFabric().Schema, map[string]any{"name": "owned"})
++			d.SetId("1")
++			diags := resourceFabricDelete(context.Background(), d, &ClientConfig{Client: &client.Client{Fabric: lifecycleFabric{err: err}}})
++			assert.Equal(t, status != "" && status != "404 Not Found", diags.HasError())
++			if status == "404 Not Found" {
++				assert.Empty(t, d.Id())
++			}
++		})
++	}
++}
++
++func TestNetworkLifecycleSubnetRetention(t *testing.T) {
++	r := resourceMAASSubnet()
++	require.Equal(t, false, r.Schema["retain_on_delete"].Default)
++	for _, retain := range []bool{false, true} {
++		t.Run(fmt.Sprint(retain), func(t *testing.T) {
++			calls := 0
++			d := schema.TestResourceDataRaw(t, r.Schema, map[string]any{"cidr": "10.0.0.0/24", "retain_on_delete": retain})
++			d.SetId("1")
++			diags := resourceSubnetDelete(context.Background(), d, &ClientConfig{Client: &client.Client{Subnet: lifecycleSubnet{calls: &calls}}})
++			assert.False(t, diags.HasError())
++			if retain {
++				assert.Zero(t, calls)
++			} else {
++				assert.Equal(t, 1, calls)
++			}
++		})
++	}
++}
+diff --git a/maas/resource_maas_subnet.go b/maas/resource_maas_subnet.go
+index 5799757..358cbf8 100644
+--- a/maas/resource_maas_subnet.go
++++ b/maas/resource_maas_subnet.go
+@@ -37,6 +37,12 @@ func resourceMAASSubnet() *schema.Resource {
+ 		},
+ 
+ 		Schema: map[string]*schema.Schema{
++			"retain_on_delete": {
++				Type:        schema.TypeBool,
++				Optional:    true,
++				Default:     false,
++				Description: "Retain the subnet and its in-line IP ranges in MAAS when this resource is destroyed. Standalone IP range resources have their own lifecycle. Defaults to false.",
++			},
+ 			"allow_dns": {
+ 				Type:        schema.TypeBool,
+ 				Optional:    true,
+@@ -254,6 +260,10 @@ func resourceSubnetUpdate(ctx context.Context, d *schema.ResourceData, meta any)
+ }
+ 
+ func resourceSubnetDelete(ctx context.Context, d *schema.ResourceData, meta any) diag.Diagnostics {
++	if d.Get("retain_on_delete").(bool) {
++		return nil
++	}
++
+ 	client := meta.(*ClientConfig).Client
+ 
+ 	id, err := strconv.Atoi(d.Id())
+diff --git a/maas/resource_maas_vlan.go b/maas/resource_maas_vlan.go
+index 2e08fd1..7d738ac 100644
+--- a/maas/resource_maas_vlan.go
++++ b/maas/resource_maas_vlan.go
+@@ -112,14 +112,24 @@ func resourceVLANCreate(ctx context.Context, d *schema.ResourceData, meta any) d
+ func resourceVLANRead(ctx context.Context, d *schema.ResourceData, meta any) diag.Diagnostics {
+ 	client := meta.(*ClientConfig).Client
+ 
+-	fabric, err := getFabric(client, d.Get("fabric").(string))
++	fabric, err := findFabric(client, d.Get("fabric").(string))
+ 	if err != nil {
+-		return diag.FromErr(err)
++		return unsetIfNotFoundError(d, err)
+ 	}
+ 
+-	vlan, err := getVLAN(client, fabric.ID, d.Id())
++	if fabric == nil {
++		d.SetId("")
++		return nil
++	}
++
++	vlan, err := findVLAN(client, fabric.ID, d.Id())
+ 	if err != nil {
+-		return diag.FromErr(err)
++		return unsetIfNotFoundError(d, err)
++	}
++
++	if vlan == nil {
++		d.SetId("")
++		return nil
+ 	}
+ 
+ 	tfState := map[string]any{
+@@ -158,18 +168,28 @@ func resourceVLANUpdate(ctx context.Context, d *schema.ResourceData, meta any) d
+ func resourceVLANDelete(ctx context.Context, d *schema.ResourceData, meta any) diag.Diagnostics {
+ 	client := meta.(*ClientConfig).Client
+ 
+-	fabric, err := getFabric(client, d.Get("fabric").(string))
++	fabric, err := findFabric(client, d.Get("fabric").(string))
+ 	if err != nil {
+-		return diag.FromErr(err)
++		return unsetIfNotFoundError(d, err)
+ 	}
+ 
+-	vlan, err := getVLAN(client, fabric.ID, d.Id())
++	if fabric == nil {
++		d.SetId("")
++		return nil
++	}
++
++	vlan, err := findVLAN(client, fabric.ID, d.Id())
+ 	if err != nil {
+-		return diag.FromErr(err)
++		return unsetIfNotFoundError(d, err)
++	}
++
++	if vlan == nil {
++		d.SetId("")
++		return nil
+ 	}
+ 
+ 	if err := client.VLAN.Delete(fabric.ID, vlan.VID); err != nil {
+-		return diag.FromErr(err)
++		return unsetIfNotFoundError(d, err)
+ 	}
+ 
+ 	return nil

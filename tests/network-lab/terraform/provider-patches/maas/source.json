@@ -1,0 +1,11 @@
+{
+  "repository": "https://github.com/canonical/terraform-provider-maas.git",
+  "commit": "0d1ed5d0958fb7c9f60916fbee56688965271a54",
+  "upstream_version": "2.10.0",
+  "version": "2.10.0-networklab.1",
+  "patch_sha256": "0a5de3a0f61cfd7e79ba10cffee30d57b8de92a4fef86f2aac4a57621239b5f6",
+  "go_version": "go1.27.3",
+  "platform": "linux_amd64",
+  "binary_sha256": "3086e5d1ad53f0795f31a8cfc92e7741f52549b32c31323f5596ba051c88aac2",
+  "archive_sha256": "c4e2f69fa4e8d6db76c82b1c71304c304b2f3b5e108c4948540f8a98a0126044"
+}
