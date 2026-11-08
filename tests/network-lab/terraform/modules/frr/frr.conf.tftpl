@@ -1,0 +1,38 @@
+frr defaults traditional
+hostname ${name}
+service integrated-vtysh-config
+ip forwarding
+ipv6 forwarding
+interface lo
+ ip address ${loopback}/32
+exit
+%{ for peer, remote_as in peers ~}
+interface ${peer}
+ no ipv6 nd suppress-ra
+ ipv6 nd ra-interval 5
+exit
+%{ endfor ~}
+ip prefix-list LAB-LOOPBACKS seq 10 permit 10.205.250.0/24 ge 32 le 32
+route-map LAB-LOOPBACKS permit 10
+ match ip address prefix-list LAB-LOOPBACKS
+exit
+router bgp ${asn}
+ bgp router-id ${loopback}
+ bgp bestpath as-path multipath-relax
+%{ for peer, remote_as in peers ~}
+ neighbor ${peer} interface remote-as ${remote_as}
+ neighbor ${peer} bfd
+ neighbor ${peer} capability extended-nexthop
+%{ endfor ~}
+ address-family ipv4 unicast
+  network ${loopback}/32
+  maximum-paths 4
+%{ for peer, remote_as in peers ~}
+  neighbor ${peer} activate
+  neighbor ${peer} route-map LAB-LOOPBACKS in
+  neighbor ${peer} route-map LAB-LOOPBACKS out
+%{ endfor ~}
+ exit-address-family
+exit
+bfd
+exit
