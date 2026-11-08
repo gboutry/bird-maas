@@ -108,6 +108,12 @@ context reserves one consecutive priority per source, beginning at
 VIP allocations cannot overlap between hosts or domains. Management prefixes
 cannot be imported or used as managed source bindings.
 
+The optional per-domain `kernel_ecmp_limit` controls BIRD kernel path merging.
+It defaults to 1 and accepts integers through 64. Values above 1 merge only
+equal best paths; context path selection and NUMA preference still apply.
+The configured limit does not establish the number of installed nexthops or
+the kernel's flow distribution.
+
 The provisioning owner installs one source-wide rule per VIP, selecting that
 context's table for every destination, followed by an exact unreachable-default
 guard (protocol 196, metric 42760). BIRD installs only approved imports into those

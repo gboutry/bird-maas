@@ -67,10 +67,12 @@ BFD, BGP authentication and explicit route filters. See the
 
 The routing policy does not depend on a particular switch vendor or on Ceph.
 That is an integration boundary, not a claim that every switch or NIC has been
-validated. The supplied attachment provider uses DPU devlink, OVS and LLDP
-observations. Ordinary NICs have a permanent-MAC identity discovery path, but
-still need a compatible attachment provider; an ordinary-NIC provider is not
-included. A Ceph readiness adapter is not included either; node-address mode can instead
+validated. The attachment provider defaults to DPU devlink, OVS and LLDP
+observation. Its explicit `native-nic` backend observes host NIC identity,
+function/VLAN ancestry, link state and LLDP on the same host as BIRD. See the
+[observer configuration](charms/dpu-attachments/README.md). Packed-charm and
+live native-NIC routing acceptance remain pending. A Ceph readiness adapter
+is not included; node-address mode can instead
 route explicitly assigned transport addresses independently of OSD health.
 
 Each unit resolves its rack authority independently, even when an application

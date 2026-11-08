@@ -25,11 +25,12 @@ can use the same model if it supplies the required readiness relation.
 | Workload publisher (default mode) | A real `route-advertisements` provider that checks readiness and withdraws addresses when they are no longer ready. No Ceph adapter is shipped here. |
 
 **An ordinary NIC does not require a DPU.** Host discovery supports permanent
-port MACs as an identity fallback. However, this repository does not supply an
-ordinary-NIC attachment publisher. To use that path, first provide and validate
-an implementation of the [attachment relation](design.md#relations). Do not
-pretend a DPU observer is a generic NIC provider or mark an attachment ready
-without evidence.
+port MACs as an identity fallback. The attachment charm's explicit `native-nic`
+backend runs on the host and checks native identity, function coordinates, VLAN,
+parent link state and MAC-type LLDP chassis observations. Configure its complete
+native attachment policy; the default `dpu` backend does not select it
+automatically. See the [attachment provider](../charms/dpu-attachments/README.md).
+Native NIC observation does not establish physical VF isolation or NUMA locality.
 
 Current host discovery also requires conventional PCI function coordinates and
 exactly one usable non-tentative IPv6 link-local address on each selected

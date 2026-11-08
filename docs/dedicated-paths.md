@@ -69,6 +69,12 @@ no NUMA preference; it does not enable ECMP, promise equal traffic distribution,
 or move a physical VF between NUMA nodes. Strict Ceph contexts still require a
 verified local attachment and reject unknown NUMA placement.
 
+A domain can explicitly set `kernel_ecmp_limit` to an integer from 2 to 64 to
+merge equal best paths into its dedicated Linux tables. The default is 1,
+retaining single-path installation. The limit is an upper bound: verify actual
+kernel nexthops and packet forwarding. Equal preference alone does not prove
+multiple installed paths, balanced flows or packet ordering.
+
 ## Scope of the implementation
 
 The new fields select context paths and preference within the existing
