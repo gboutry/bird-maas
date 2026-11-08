@@ -1,4 +1,4 @@
-.PHONY: sync lint format test test-fast test-tooling lint-fast typecheck typecheck-fast check check-fast install-hooks native namespaces pack schemas
+.PHONY: sync lint format test test-fast test-tooling lint-fast typecheck typecheck-fast check check-fast install-hooks native namespaces pack pack-network-lab build-network-lab-provider deploy-network-lab schemas
 sync:
 	uv sync --locked --python 3.12
 lint:
@@ -34,5 +34,13 @@ namespaces:
 	uv run --locked python scripts/test_namespaces.py
 pack:
 	uv run --locked python scripts/pack.py
+pack-network-lab:
+	uv run --locked python scripts/pack.py --development-charmcraft \
+		--output-directory tests/network-lab/runtime/charms
+build-network-lab-provider:
+	uv run --locked python scripts/build_network_lab_provider.py \
+		--output-directory tests/network-lab/runtime/terraform/providers
+deploy-network-lab:
+	uv run --locked python scripts/deploy_network_lab.py
 schemas:
 	uv run --locked python scripts/export_schemas.py
