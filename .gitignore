@@ -10,3 +10,6 @@ build/
 *.egg-info/
 
 .hypothesis/
+
+# Local research notes and execution evidence.
+/braindump/
