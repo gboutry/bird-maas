@@ -325,6 +325,33 @@ def test_supported_rack_configuration_native_parser(tmp_path, mode):
     subprocess.run([str(BIRD), "-p", "-c", str(path)], check=True, capture_output=True)
 
 
+@pytest.mark.parametrize("interface", ["enp7s0.3404", "vf-host.4"])
+def test_rack_neighbor_zone_accepts_interface_punctuation(tmp_path, interface):
+    plan = resolve_rack(**rack_inputs())
+    domain = plan.domains[0]
+    session = domain.sessions[0].model_copy(update={"interface": interface})
+    domain = domain.model_copy(update={"sessions": (session, *domain.sessions[1:])})
+    plan = plan.model_copy(update={"domains": (domain, *plan.domains[1:])})
+    path = tmp_path / "interface-punctuation.conf"
+    path.write_text(render_rack(plan, {s.id: "test-only" for s in plan.sessions}))
+    subprocess.run([str(BIRD), "-p", "-c", str(path)], check=True, capture_output=True)
+
+
+@pytest.mark.parametrize("limit", [2, 64])
+def test_explicit_kernel_ecmp_configuration_parses(tmp_path, limit):
+    plan = resolve_rack(**rack_inputs())
+    plan = plan.model_copy(
+        update={
+            "domains": tuple(
+                d.model_copy(update={"kernel_ecmp_limit": limit}) for d in plan.domains
+            )
+        }
+    )
+    path = tmp_path / "kernel-ecmp.conf"
+    path.write_text(render_rack(plan, {s.id: "test-only" for s in plan.sessions}))
+    subprocess.run([str(BIRD), "-p", "-c", str(path)], check=True, capture_output=True)
+
+
 @pytest.mark.parametrize("mode", ["workload", "node-addresses"])
 @pytest.mark.parametrize("interval", [50, 300])
 def test_ten_dedicated_vfs_and_neutral_context_parse_with_native_bird(tmp_path, interval, mode):

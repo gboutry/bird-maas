@@ -109,6 +109,13 @@
           "title": "Contexts",
           "type": "array"
         },
+        "kernel_ecmp_limit": {
+          "default": 1,
+          "maximum": 64,
+          "minimum": 1,
+          "title": "Kernel Ecmp Limit",
+          "type": "integer"
+        },
         "bfd_min_tx_ms": {
           "anyOf": [
             {

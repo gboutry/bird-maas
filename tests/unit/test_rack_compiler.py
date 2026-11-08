@@ -27,6 +27,33 @@ def test_every_bgp_session_has_one_second_initial_connect_delay(inputs_factory):
     assert config.count("connect retry time 2;") == len(plan.sessions)
 
 
+@pytest.mark.parametrize("limit", [1, 2, 64])
+def test_explicit_kernel_ecmp_limit_preserves_single_path_default(limit):
+    inputs = rack_inputs()
+    domains = json.loads(inputs["config"]["routing-domains"])
+    domains[0]["kernel_ecmp_limit"] = limit
+    inputs["config"]["routing-domains"] = json.dumps(domains)
+    plan = resolve_rack(**inputs)
+    selected = next(d for d in plan.domains if d.domain == domains[0]["id"])
+    assert selected.kernel_ecmp_limit == limit
+    assert all(d.kernel_ecmp_limit == 1 for d in plan.domains if d != selected)
+    config = render_rack(plan, {s.id: "test-only" for s in plan.sessions})
+    if limit == 1:
+        assert "merge paths" not in config
+    else:
+        assert config.count(f"merge paths on limit {limit};") == len(selected.contexts)
+
+
+@pytest.mark.parametrize("limit", [0, 65, True, "2"])
+def test_invalid_kernel_ecmp_limits_are_rejected(limit):
+    inputs = rack_inputs()
+    domains = json.loads(inputs["config"]["routing-domains"])
+    domains[0]["kernel_ecmp_limit"] = limit
+    inputs["config"]["routing-domains"] = json.dumps(domains)
+    with pytest.raises(ValueError):
+        resolve_rack(**inputs)
+
+
 @settings(max_examples=24)
 @given(order=st.permutations((0, 1)), reverse_links=st.booleans(), reverse_docs=st.booleans())
 def test_reordering_observations_cannot_restart_sessions_or_change_policy(

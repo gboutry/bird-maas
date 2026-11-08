@@ -149,7 +149,7 @@ class Card(Record):
 
 
 class Attachments(Record):
-    """Provider unit data, one document per DPU unit."""
+    """Provider unit data, one document per attachment-observer unit."""
 
     cards: tuple[Card, ...] | None = None
 
@@ -229,6 +229,7 @@ class Plan(Record):
     keepalive_time: int
     contexts: tuple[RoutingContext, ...] = ()
     domain: str = ""
+    kernel_ecmp_limit: Annotated[int, Field(strict=True, ge=1, le=64)] = 1
 
 
 class RoutingDomain(Record):
@@ -240,6 +241,7 @@ class RoutingDomain(Record):
     import_prefixes: tuple[IPv4Network, ...]
     export_allowlist: tuple[IPv4Network, ...]
     contexts: tuple[ContextIntent, ...]
+    kernel_ecmp_limit: Annotated[int, Field(strict=True, ge=1, le=64)] = 1
     bfd_min_tx_ms: Annotated[int, Field(strict=True, ge=50, le=60000)] | None = None
     bfd_min_rx_ms: Annotated[int, Field(strict=True, ge=50, le=60000)] | None = None
     bfd_multiplier: Annotated[int, Field(strict=True, ge=1, le=255)] | None = None

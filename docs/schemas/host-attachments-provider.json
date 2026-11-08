@@ -414,7 +414,7 @@
       "type": "object"
     }
   },
-  "description": "Provider unit data, one document per DPU unit.",
+  "description": "Provider unit data, one document per attachment-observer unit.",
   "properties": {
     "cards": {
       "anyOf": [

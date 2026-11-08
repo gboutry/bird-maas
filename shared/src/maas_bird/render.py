@@ -85,10 +85,15 @@ def _domain(domain: Plan, passwords: dict[str, str]) -> str:
 """
     for context in domain.contexts:
         tag = _tag(context.id)
+        multipath = (
+            f" merge paths on limit {domain.kernel_ecmp_limit};\n"
+            if domain.kernel_ecmp_limit > 1
+            else ""
+        )
         text += f"""ipv4 table {namespace}context_{tag};
 protocol kernel {namespace}kernel_{tag} {{
  kernel table {context.table};
- ipv4 {{ table {namespace}context_{tag}; import none;
+{multipath} ipv4 {{ table {namespace}context_{tag}; import none;
   export filter {{ if source = RTS_BGP then accept; reject; }};
  }};
 }}
@@ -114,7 +119,7 @@ protocol pipe {namespace}originate_{tag} {{
 }}
 protocol bgp {bgp} {{
  local {session.local} as {domain.host.local_asn};
- neighbor {session.peer}%{session.interface} as {session.remote_asn};
+ neighbor {session.peer}%'{session.interface}' as {session.remote_asn};
  interface {quoted(session.interface)}; password {quoted(password)};
  direct; strict bind yes; check link yes; bfd yes;
  connect delay time 1;

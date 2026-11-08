@@ -2,12 +2,13 @@
 
 import json
 import subprocess
+from ipaddress import IPv4Network
 
 import pytest
 from hypothesis import given
 from hypothesis import strategies as st
 from maas_bird import external_policy
-from maas_bird.models import ContextIntent
+from maas_bird.models import ContextIntent, sessions_for_context
 from maas_bird.resolver import resolve_rack
 from pydantic import ValidationError
 
@@ -21,6 +22,49 @@ def test_every_managed_source_is_guarded_for_all_destinations():
     assert len(expected["rules"]) == sum(len(c.sources) for c in plan.contexts)
     assert all(rule["dst"] == "0.0.0.0/0" for rule in expected["rules"])
     assert len({rule["priority"] for rule in expected["rules"]}) == len(expected["rules"])
+
+
+@pytest.mark.parametrize("destination", ["203.0.113.250", "203.0.113.250/32"])
+def test_native_host_route_destination_keeps_exact_authorization(destination):
+    original = resolve_rack(**rack_inputs())
+    domain = original.domains[0].model_copy(update={"imports": (IPv4Network("203.0.113.250/32"),)})
+    plan = original.model_copy(update={"domains": (domain,)})
+    host = ProvisionedHost(plan)
+    host.service = object()
+    for context in domain.contexts:
+        host.kernel.routes.append(
+            {
+                "table": context.table,
+                "protocol": 12,
+                "dst": destination,
+                "dev": sessions_for_context(domain, context)[0].interface,
+            }
+        )
+    before = host.kernel.snapshot()
+    external_policy.validate(external_policy.expected_policy(plan), host.execute)
+    assert host.kernel.snapshot() == before
+
+
+@pytest.mark.parametrize("destination", ["203.0.113.0/24", "203.0.113.249", "default"])
+def test_host_route_authority_never_admits_a_covering_or_different_destination(destination):
+    original = resolve_rack(**rack_inputs())
+    domain = original.domains[0].model_copy(update={"imports": (IPv4Network("203.0.113.250/32"),)})
+    plan = original.model_copy(update={"domains": (domain,)})
+    host = ProvisionedHost(plan)
+    host.service = object()
+    context = domain.contexts[0]
+    host.kernel.routes.append(
+        {
+            "table": context.table,
+            "protocol": 12,
+            "dst": destination,
+            "dev": sessions_for_context(domain, context)[0].interface,
+        }
+    )
+    before = host.kernel.snapshot()
+    with pytest.raises(external_policy.PolicyError, match="Unexpected route"):
+        external_policy.validate(external_policy.expected_policy(plan), host.execute)
+    assert host.kernel.snapshot() == before
 
 
 @pytest.mark.parametrize("fault", ["tos", "missing-rule", "early-rule", "foreign-route"])

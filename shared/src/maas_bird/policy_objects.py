@@ -11,6 +11,21 @@ class PolicyError(RuntimeError):
     pass
 
 
+def route_network(route: dict[str, Any]):
+    """Parse exact route prefixes; iproute2 omits the suffix on host routes."""
+    value = route.get("dst")
+    if not isinstance(value, str):
+        return None
+    if value == "default":
+        value = "0.0.0.0/0"
+    if "/" not in value and "dstlen" in route:
+        value += "/" + str(route["dstlen"])
+    try:
+        return IPv4Network(value)
+    except ValueError:
+        return None
+
+
 def rule_network(rule: dict[str, Any], field: str):
     value = rule.get(field, "all")
     if value == "all":

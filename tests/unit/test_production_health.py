@@ -7,6 +7,7 @@ kernel routing table runs here; namespace tests exercise those boundaries.
 
 import json
 import subprocess
+from ipaddress import IPv4Network
 
 import pytest
 from maas_bird import rack_runtime
@@ -75,6 +76,33 @@ def outputs(plan, responses, *, scoped_neighbor=False, down=None, absent=None):
         for s in sessions
         if s.id != absent
     )
+
+
+@pytest.mark.parametrize("destination", ["203.0.113.250", "203.0.113.250/32"])
+@pytest.mark.parametrize("multipath", [False, True])
+def test_exact_host_routes_and_multipath_are_recognized(
+    health_probe, monkeypatch, destination, multipath
+):
+    service, plan, responses = health_probe
+    domain = plan.domains[0].model_copy(update={"imports": (IPv4Network("203.0.113.250/32"),)})
+    plan = plan.model_copy(update={"domains": (domain,)})
+    outputs(plan, responses)
+
+    def execute(args, check=True):
+        assert args[:7] == ["ip", "-4", "-j", "-N", "route", "show", "table"]
+        context = next(c for c in domain.contexts if c.table == int(args[-1]))
+        local = next(s.interface for s in domain.sessions if s.numa_node == context.numa_node)
+        route = {"dst": destination, "protocol": "12"}
+        if multipath:
+            route["nexthops"] = [{"dev": s.interface} for s in domain.sessions]
+        else:
+            route["dev"] = local
+        return subprocess.CompletedProcess(args, 0, json.dumps([route]), "")
+
+    monkeypatch.setattr(rack_runtime, "run", execute)
+    result = service.health(plan)
+    assert result["missing_routes"] == 0
+    assert result["fallback_routes"] == 0
 
 
 @pytest.mark.parametrize("scoped_neighbor", [False, True])

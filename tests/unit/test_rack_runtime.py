@@ -199,6 +199,25 @@ def test_failed_restrictive_bundle_write_denies_old_startup_authority(
         external_policy.startup_gate(service.directory)
 
 
+def test_first_activation_parser_failure_never_commits_or_starts(rack_environment, monkeypatch):
+    _, plan, passwords, service, host = rack_environment
+    baseline = host.kernel.snapshot()
+    execute = host.execute
+
+    def fail_parser(args, check=True):
+        if args[:2] == ["bird", "-p"]:
+            raise RuntimeErrorBase("simulated parser failure")
+        return execute(args, check)
+
+    monkeypatch.setattr("maas_bird.rack_runtime.run", fail_parser)
+    with pytest.raises(RuntimeErrorBase, match="simulated parser failure"):
+        service.apply_plan(plan, passwords)
+    assert not host.active
+    assert not service.manifest.exists()
+    assert not any(call[:3] == ["systemctl", "enable", "--now"] for call in host.calls)
+    assert host.kernel.snapshot() == baseline
+
+
 def test_parser_failure_restores_previous_cache_without_native_reconfiguration(
     rack_environment, monkeypatch
 ):

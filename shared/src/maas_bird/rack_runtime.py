@@ -12,6 +12,7 @@ import os
 import re
 import shutil
 import sys
+import tempfile
 import time
 import uuid
 from decimal import Decimal
@@ -187,9 +188,15 @@ class RackService(OwnedBird):
                 for prefix in domain.imports:
                     if prefix in context.sources and prefix in local_sources:
                         continue
-                    selected = [r for r in routes if r.get("dst") == str(prefix) and r.get("dev")]
-                    missing += not selected
-                    fallback += bool(selected) and not any(r["dev"] in local for r in selected)
+                    devices = {
+                        hop["dev"]
+                        for route in routes
+                        if policy_objects.route_network(route) == prefix
+                        for hop in route.get("nexthops", [route])
+                        if hop.get("dev")
+                    }
+                    missing += not devices
+                    fallback += bool(devices) and not devices & local
         timers = (
             _bfd_timer_health(plan, bfd.stdout)
             if not bfd.returncode
@@ -422,7 +429,12 @@ class RackService(OwnedBird):
         )
         if self._active():
             self.stop()  # An owned process without an accepted bundle is unknown.
-        bundle = self._commit(baseline, render_rack(baseline, passwords), uuid.uuid4().hex)
+        logical = render_rack(baseline, passwords)
+        with tempfile.NamedTemporaryFile(mode="w", dir=self.directory) as candidate:
+            candidate.write(logical)
+            candidate.flush()
+            run(["bird", "-p", "-c", candidate.name])
+        bundle = self._commit(baseline, logical, uuid.uuid4().hex)
         self._materialize(bundle)
         self._start()
         self._wait_live(bundle)

@@ -146,6 +146,79 @@ def test_node_mode_hook_still_checks_native_addresses_before_applying(
         )
 
 
+@pytest.mark.parametrize("source_device", ["fast", "lo"])
+def test_node_source_on_fast_interface_does_not_satisfy_loopback_admission(
+    charm_context, monkeypatch, source_device
+):
+    inputs = node_inputs()
+    plan = resolve_rack(**inputs)
+    monkeypatch.setattr(discovery, "host_uuid", lambda: "host-uuid")
+    monkeypatch.setattr(discovery, "links", lambda: inputs["local_links"])
+    fast_interface = inputs["local_links"][0].interface
+    sources = [source for context in plan.contexts for source in context.sources]
+    assert sources and all(source.prefixlen == 32 for source in sources)
+    addresses = {
+        fast_interface: [
+            {"local": str(source.network_address), "prefixlen": 32} for source in sources
+        ],
+        "lo": [],
+    }
+    if source_device == "lo":
+        addresses["lo"] = addresses[fast_interface]
+    queried_devices = []
+
+    def address_command(argv):
+        assert argv[:5] == ["ip", "-j", "-4", "address", "show"]
+        assert len(argv) == 6
+        device = argv[5]
+        queried_devices.append(device)
+        return json.dumps([{"ifname": device, "addr_info": addresses[device]}])
+
+    monkeypatch.setattr(discovery, "command", address_command)
+    service = Mock()
+    service.state.return_value = None
+    service.observations.return_value = {}
+    service.health.return_value = {
+        "established": 10,
+        "configured": 10,
+        "missing_routes": 0,
+        "fallback_routes": 0,
+        "bfd_timer_issues": [],
+        "bfd_timer_mismatches": [],
+    }
+    monkeypatch.setattr("maas_bird.rack_runtime.RackService", lambda **_: service)
+    secret = testing.Secret({session.id: "test-only" for session in plan.sessions})
+    relations = {
+        testing.Relation("inventory", remote_app_data=inventory_response(inputs["inventory"])),
+        testing.Relation(
+            "attachments",
+            remote_units_data={n: encode(doc) for n, doc in enumerate(inputs["attachments"])},
+        ),
+    }
+    ctx = charm_context("bird")
+    out = ctx.run(
+        ctx.on.config_changed(),
+        testing.State(
+            config=consumer_config(inputs["config"])
+            | {"enabled": True, "bgp-credentials": secret.id},
+            secrets={secret},
+            relations=relations,
+        ),
+    )
+    assert queried_devices == ["lo"]
+    if source_device == "fast":
+        service.apply_plan.assert_not_called()
+        assert out.unit_status == testing.WaitingStatus(
+            "Provision every declared source VIP as a /32 on lo"
+        )
+    else:
+        service.apply_plan.assert_called_once()
+        assert service.apply_plan.call_args.args[0] == plan
+        assert out.unit_status == testing.ActiveStatus(
+            "Rack a: 10/10 BGP/BFD Up; node addresses, service health not checked"
+        )
+
+
 def test_node_mode_cannot_activate_without_the_existing_source_guard(rack_environment):
     inputs, _, passwords, service, host = rack_environment
     inputs["config"]["advertisement-mode"] = "node-addresses"

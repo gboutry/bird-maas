@@ -11,7 +11,7 @@ import hashlib
 import json
 import os
 import subprocess
-from ipaddress import IPv4Interface
+from ipaddress import IPv4Interface, IPv4Network
 from pathlib import Path
 
 from maas_bird import ovsdb
@@ -20,6 +20,7 @@ from maas_bird.policy_objects import (
     PROTOCOL,
     PolicyError,
     guard_key,
+    route_network,
     rule_key,
     rule_network,
 )
@@ -90,6 +91,7 @@ def validate(
         if not any(guard_key(route) == (table, protocol, GUARD_METRIC) for route in routes):
             raise PolicyError("Provision an exact unreachable-default guard in every host context")
     for context in expected.get("contexts", []) if check_routes else ():
+        destinations = {IPv4Network(prefix) for prefix in context["destinations"]}
         for route in routes:
             if str(route.get("table")) != str(context["table"]):
                 continue
@@ -99,7 +101,7 @@ def validate(
             if (
                 str(route.get("type", "unicast")) not in {"unicast", "1"}
                 or str(route.get("protocol")) != "12"
-                or route.get("dst") not in context["destinations"]
+                or route_network(route) not in destinations
                 or not devices
                 or any(device not in context["interfaces"] for device in devices)
             ):
