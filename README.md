@@ -194,3 +194,11 @@ current ARM evidence.
 
 Historical reproductions under `tests/prototype` are excluded from artifacts
 and are not a supported deployment mode.
+
+## Physical PF/VF VLAN benchmark tooling
+
+The [network benchmark guide](docs/network-benchmark.md) covers read-only
+machine-state capture and a kernel TCP/UDP comparison of existing PF/VF VLAN
+attachments, including both hosts and DPU Arm telemetry. Planning is offline;
+remote capture and traffic require an explicit execution flag. The tools do not
+configure hardware or inject faults.
