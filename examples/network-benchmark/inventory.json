@@ -1,0 +1,39 @@
+{
+  "version": 1,
+  "nodes": {
+    "host-a": {
+      "role": "host",
+      "ssh": "ubuntu@host-a.invalid",
+      "uuid": "00000000-0000-0000-0000-000000000001"
+    },
+    "host-b": {
+      "role": "host",
+      "ssh": "ubuntu@host-b.invalid",
+      "uuid": "00000000-0000-0000-0000-000000000002"
+    },
+    "arm-a0": {
+      "role": "arm",
+      "ssh": "ubuntu@arm-a0.invalid",
+      "identity_kind": "machine-id",
+      "uuid": "00000000000000000000000000000003"
+    },
+    "arm-a1": {
+      "role": "arm",
+      "ssh": "ubuntu@arm-a1.invalid",
+      "identity_kind": "machine-id",
+      "uuid": "00000000000000000000000000000004"
+    },
+    "arm-b0": {
+      "role": "arm",
+      "ssh": "ubuntu@arm-b0.invalid",
+      "identity_kind": "machine-id",
+      "uuid": "00000000000000000000000000000005"
+    },
+    "arm-b1": {
+      "role": "arm",
+      "ssh": "ubuntu@arm-b1.invalid",
+      "identity_kind": "machine-id",
+      "uuid": "00000000000000000000000000000006"
+    }
+  }
+}

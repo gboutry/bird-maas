@@ -1,0 +1,39 @@
+{
+  "version": 1,
+  "mtu": 9000,
+  "duration": 120,
+  "warmup": 30,
+  "idle": 10,
+  "repeats": 5,
+  "port": 55201,
+  "nodes": {
+    "host-a": {"role": "host", "ssh": "ubuntu@host-a.invalid", "uuid": "00000000-0000-0000-0000-000000000001", "interfaces": ["pf0", "pf0.100", "vf0", "vf0.100"]},
+    "host-b": {"role": "host", "ssh": "ubuntu@host-b.invalid", "uuid": "00000000-0000-0000-0000-000000000002", "interfaces": ["pf0", "pf0.100", "vf0", "vf0.100"]},
+    "arm-a0": {"role": "arm", "ssh": "ubuntu@arm-a0.invalid", "identity_kind": "machine-id", "uuid": "00000000000000000000000000000003", "interfaces": ["p0", "p1", "bond0", "pf0hpf", "pf0vf0"]},
+    "arm-b0": {"role": "arm", "ssh": "ubuntu@arm-b0.invalid", "identity_kind": "machine-id", "uuid": "00000000000000000000000000000004", "interfaces": ["p0", "p1", "bond0", "pf0hpf", "pf0vf0"]}
+  },
+  "endpoints": {
+    "a": {"node": "host-a", "arms": ["arm-a0"]},
+    "b": {"node": "host-b", "arms": ["arm-b0"]}
+  },
+  "modes": {
+    "pf": {
+      "a": {"kind": "pf", "interface": "pf0.100", "parent": "pf0", "pci": "0000:03:00.0", "vlan": 100, "address": "192.0.2.10", "numa_node": 0},
+      "b": {"kind": "pf", "interface": "pf0.100", "parent": "pf0", "pci": "0000:03:00.0", "vlan": 100, "address": "192.0.2.20", "numa_node": 0}
+    },
+    "vf": {
+      "a": {"kind": "vf", "interface": "vf0.100", "parent": "vf0", "pci": "0000:03:00.2", "vlan": 100, "address": "192.0.2.10", "numa_node": 0},
+      "b": {"kind": "vf", "interface": "vf0.100", "parent": "vf0", "pci": "0000:03:00.2", "vlan": 100, "address": "192.0.2.20", "numa_node": 0}
+    }
+  },
+  "placements": {
+    "local": {"a": {"cpus": [2, 3], "memory_node": 0}, "b": {"cpus": [2, 3], "memory_node": 0}},
+    "a-cross": {"a": {"cpus": [34, 35], "memory_node": 1}, "b": {"cpus": [2, 3], "memory_node": 0}}
+  },
+  "cases": [
+    {"name": "tcp-fixed", "transport": "tcp", "flows": 8, "direction": "a-b", "placement": "local", "rate_bps": 8000000000},
+    {"name": "tcp-max-reverse", "transport": "tcp", "flows": 8, "direction": "b-a", "placement": "local", "rate_bps": "maximum"},
+    {"name": "udp-small", "transport": "udp", "flows": 8, "direction": "a-b", "placement": "local", "rate_bps": 80000000, "payload_bytes": 18},
+    {"name": "udp-mtu-bidir", "transport": "udp", "flows": 8, "direction": "bidir", "placement": "local", "rate_bps": 8000000000, "payload_bytes": 8972}
+  ]
+}
